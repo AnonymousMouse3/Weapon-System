@@ -16,6 +16,7 @@ using Random = UnityEngine.Random;
 // Then create a new WeaponScriptableObject, fill out the weapon's stats, and also add it to the Weapon script
 // Then, just hook up inputs to the PullTrigger and ReleaseTrigger methods to use the weapon. do the same for reload, etc
 // todo rewrite this because inputs are now handled through weaponmanager to allow for multiple weapons etc
+//awawawawawawaw
 public class Weapon : MonoBehaviour
 {
     public delegate void OnReloadWeapon(GameObject validationObject);
