@@ -240,7 +240,7 @@ public class ProjectileSystem : MonoBehaviour
         #if LIQUID_SYSTEM
         if (projectileComponent.createsLiquid)
         {
-            if (other.gameObject.tag == "Liquid")
+            if (other.gameObject.CompareTag("Liquid"))
             {
                 LiquidV2Manager liquidManager = FindFirstObjectByType<LiquidV2Manager>();
 
@@ -248,7 +248,7 @@ public class ProjectileSystem : MonoBehaviour
 
                 projectileComponent.createsLiquid = false;
             }
-            else if (other.gameObject.tag == "Floor")
+            else if (other.gameObject.CompareTag("Floor"))
             {
                 LiquidV2Manager liquidManager = FindFirstObjectByType<LiquidV2Manager>();
 
