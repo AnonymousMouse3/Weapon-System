@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using MouseLib;
 using MyBox;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.Serialization;
 using Random = UnityEngine.Random;
 
 // The Weapon script is the top of the weapon system "stack"
@@ -24,7 +26,9 @@ public class Weapon : MonoBehaviour
     public static event Action OnWeaponShoot;
     public static event Action<float> OnAttackSpeedModifierChange;
     
-    [SerializeField] public GameObject firePoint;
+    [SerializeField] public List<GameObject> firePoints;
+    [SerializeField] public bool alternateFirePoints;
+    [SerializeField, ReadOnly] public GameObject currentProjectile;
     
     public GameObject WeaponOwner 
     {
@@ -50,6 +54,7 @@ public class Weapon : MonoBehaviour
     private Task cycleTask;
     private Task reloadTask;
     private float burstCounter;
+    private int firePointCounter;
     private float baseFireRate;
 
     private void OnEnable()
@@ -89,6 +94,9 @@ public class Weapon : MonoBehaviour
         weaponComponent.currentReserveAmmo = weaponComponent.maxReserveAmmo; // change dynamically in future, obviously
         
         weaponOwner = transform.parent.transform.parent.gameObject;
+
+        if (weaponComponent.projectilePrefabs.IsNullOrEmpty()) { Debug.Log("Weapon has no projectile. Assign one in the inspector."); return;}
+        currentProjectile = weaponComponent.projectilePrefabs[0]; // change/remember the default during gameplay? hardcoded for now
     }
 
     public void PullTrigger(GameObject validationObject)
@@ -158,29 +166,29 @@ public class Weapon : MonoBehaviour
         if (weaponComponent.firingState == WeaponComponent.FiringState.Cycling) { CouldNotFire(); return; }
     
         if (weaponComponent.reloadState == WeaponComponent.ReloadState.Reloading) { CouldNotFire(); return; }
-        
-        // If the weapon has a chamber, and it is not loaded, the weapon cannot fire
-        if (weaponComponent.hasChamber)
+
+        if (weaponComponent.usesAmmo)
         {
-            if (!weaponComponent.isChamberLoaded) { CouldNotFire(); return; }
-        }
-        
-        // If the weapon does not have a chamber, only a magazine, canister, etc. (e.g. revolvers, flamethrowers)
-        // Then the weapon cannot fire if it is empty
-        // Note that it must NOT have a chamber for this to be true. If the chamber is just empty the gun needs to be racked
-        else if (weaponComponent.hasMagazine && !weaponComponent.hasChamber)
-        {
-            if (weaponComponent.currentMagazineAmmo <= 0) { CouldNotFire(); return; }
-        }
-        
-        else if (weaponComponent.drawsFromReserveAmmoDirectly && !weaponComponent.hasMagazine && !weaponComponent.hasChamber)
-        {
-            if (weaponComponent.currentReserveAmmo <= 0) { CouldNotFire(); return; }
-        }
-        
-        else if (!weaponComponent.drawsFromReserveAmmoDirectly && !weaponComponent.hasMagazine && !weaponComponent.hasChamber)
-        {
-            { CouldNotFire(); return; }
+            // If the weapon has a chamber, and it is not loaded, the weapon cannot fire
+            if (weaponComponent.hasChamber)
+            {
+                if (!weaponComponent.isChamberLoaded) { CouldNotFire(); return; }
+            }
+
+            // If the weapon does not have a chamber, only a magazine, canister, etc. (e.g. revolvers, flamethrowers)
+            // Then the weapon cannot fire if it is empty
+            // Note that it must NOT have a chamber for this to be true. If the chamber is just empty the gun needs to be racked
+            else if (weaponComponent.hasMagazine && !weaponComponent.hasChamber)
+            {
+                if (weaponComponent.currentMagazineAmmo <= 0) { CouldNotFire(); return; }
+            }
+
+            else if (weaponComponent.drawsFromReserveAmmoDirectly && !weaponComponent.hasMagazine && !weaponComponent.hasChamber)
+            {
+                if (weaponComponent.currentReserveAmmo <= 0) { CouldNotFire(); return; }
+            }
+
+            else if (!weaponComponent.drawsFromReserveAmmoDirectly && !weaponComponent.hasMagazine && !weaponComponent.hasChamber) { CouldNotFire(); return; }
         }
         
         FireWeapon();
@@ -193,6 +201,11 @@ public class Weapon : MonoBehaviour
     
     private void FireWeapon()
     {
+        Transform selectedFirePoint = firePoints[firePointCounter].transform;
+
+        if (alternateFirePoints) firePointCounter++;
+        if (firePointCounter >= firePoints.Count) firePointCounter = 0;
+        
         switch (weaponComponent.hitscanOrProjectile)
         {
             case WeaponComponent.HitscanOrProjectile.Hitscan:
@@ -200,19 +213,17 @@ public class Weapon : MonoBehaviour
                 break;
             
             case WeaponComponent.HitscanOrProjectile.Projectile:
-                if (!weaponComponent.projectilePrefab) { Debug.Log("Weapon has no projectile. Assign one in the inspector."); return;}
-
                 if (weaponComponent.shootsMultipleProjectiles)
                 {
                     for (int i = 0; i < weaponComponent.projectilesPerShot; i++)
                     {
-                        SpawnProjectile();
+                        SpawnProjectile(currentProjectile, selectedFirePoint);
                     }
 
                     break;
                 }
                 
-                SpawnProjectile();
+                SpawnProjectile(currentProjectile, selectedFirePoint);
                 break;
         }
         
@@ -287,14 +298,14 @@ public class Weapon : MonoBehaviour
         //hit.collider.gameObject.GetComponent<HealthSystem>().DoDamage(selectedWeapon.damageTable);*/
     }
 
-    private void SpawnProjectile()
+    private void SpawnProjectile(GameObject projectileToSpawn, Transform selectedFirePoint)
     {
         float randomSpreadAngleX = Random.Range(-weaponComponent.projectileSpreadAngle, weaponComponent.projectileSpreadAngle);
         float randomSpreadAngleY = Random.Range(-weaponComponent.projectileSpreadAngle, weaponComponent.projectileSpreadAngle);
         Vector3 spreadVector = new Vector3(randomSpreadAngleX, randomSpreadAngleY, 0);
-        Quaternion projectileAngleWithSpread = firePoint.transform.rotation * Quaternion.Euler(spreadVector);
+        Quaternion projectileAngleWithSpread = selectedFirePoint.transform.rotation * Quaternion.Euler(spreadVector);
         
-        GameObject newProjectile = Instantiate(weaponComponent.projectilePrefab, firePoint.transform.position, projectileAngleWithSpread);
+        GameObject newProjectile = Instantiate(projectileToSpawn, selectedFirePoint.transform.position, projectileAngleWithSpread);
         newProjectile.TryGetComponent(out ProjectileSystem newProjectileSystem);
 
         OnWeaponShoot?.Invoke();

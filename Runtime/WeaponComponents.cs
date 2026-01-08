@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using MyBox;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 // Credit to DeadCows' MyBox for additional editor attributes - https://github.com/Deadcows/MyBox/
 
@@ -186,7 +187,7 @@ public class WeaponComponent
     public float expectedDamage;
     
     [Separator("Projectile Settings")]
-    public GameObject projectilePrefab;
+    public List<GameObject> projectilePrefabs;
     public bool passTargetToProjectile;
     
     public bool shootsMultipleProjectiles;

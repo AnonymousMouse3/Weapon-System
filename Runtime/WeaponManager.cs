@@ -22,6 +22,8 @@ public class WeaponManager : MonoBehaviour
     public static OnHandleWeaponInputs onHandleWeaponInputs;
     public delegate void OnSwapWeapons(GameObject validationObject, int weaponSlotIndex, float weaponIndex);
     public static OnSwapWeapons onSwapWeapons;
+    public delegate void OnSwitchAmmoType(GameObject validationObject, GameObject newAmmoType, int weaponSlotIndex);
+    public static OnSwitchAmmoType onSwitchAmmoType;
     
     public static event Action<Weapon, WeaponSlot> OnSetWeapon;
     
@@ -34,12 +36,14 @@ public class WeaponManager : MonoBehaviour
     {
         onHandleWeaponInputs += HandleWeaponInputs;
         onSwapWeapons += SwapWeapons;
+        onSwitchAmmoType += SwitchAmmoType;
     }
 
     void OnDisable()
     {
         onHandleWeaponInputs -= HandleWeaponInputs;
         onSwapWeapons -= SwapWeapons;
+        onSwitchAmmoType += SwitchAmmoType;
     }
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
@@ -110,5 +114,15 @@ public class WeaponManager : MonoBehaviour
         swappingWeapon = false;
         
         OnSetWeapon?.Invoke(weaponSlot.CurrentWeapon, weaponSlot);
+    }
+
+    private void SwitchAmmoType(GameObject validationObject, GameObject newAmmoType, int weaponSlotIndex)
+    {
+        if (validationObject != gameObject) return;
+        
+        WeaponSlot weaponSlot = WeaponSlots[weaponSlotIndex];
+        
+        if (!weaponSlot.CurrentWeapon.weaponScriptableObject.weaponComponent.projectilePrefabs.Contains(newAmmoType)) return;
+        weaponSlot.CurrentWeapon.currentProjectile = newAmmoType;
     }
 }
