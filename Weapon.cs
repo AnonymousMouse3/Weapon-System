@@ -27,7 +27,7 @@ public class Weapon : MonoBehaviour
     public static event Action<float> OnAttackSpeedModifierChange;
     
     [SerializeField] public List<GameObject> firePoints;
-    [SerializeField] public bool alternateFirePoints;
+    [SerializeField] public bool cycleFirePoints;
     [SerializeField, ReadOnly] public GameObject currentProjectile;
     
     public GameObject WeaponOwner 
@@ -203,7 +203,7 @@ public class Weapon : MonoBehaviour
     {
         Transform selectedFirePoint = firePoints[firePointCounter].transform;
 
-        if (alternateFirePoints) firePointCounter++;
+        if (cycleFirePoints) firePointCounter++;
         if (firePointCounter >= firePoints.Count) firePointCounter = 0;
         
         switch (weaponComponent.hitscanOrProjectile)
