@@ -4,6 +4,7 @@ using DG.Tweening;
 using MouseLib;
 using MyBox;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 public class PlayerAimingSystem : MonoBehaviour
 {
@@ -16,7 +17,7 @@ public class PlayerAimingSystem : MonoBehaviour
     
     [Separator("Runtime")]
     [SerializeField, ReadOnly] private GameObject closestTargetToCrosshair;
-    List<Collider> targetsInCone;
+    [SerializeField, ReadOnly] private List<Collider> targetsInCone;
     private Camera mainCamera;
     private Tween weaponTween;
     private Tween spellTween;
@@ -44,7 +45,7 @@ public class PlayerAimingSystem : MonoBehaviour
     [SerializeField] private float spellAimTime;
     [SerializeField] private float maxAimDistance;
     [SerializeField] private float maxConeAimDistance;
-    [SerializeField] private float selectionConeWidthDegrees;
+    [FormerlySerializedAs("selectionConeWidthDegrees")] [SerializeField] private float aimConeWidthDegrees;
     
     [SerializeField] LayerMask enemyLayerMask;
     [SerializeField] LayerMask nonTransparentLayerMask;
@@ -121,8 +122,9 @@ public class PlayerAimingSystem : MonoBehaviour
         if (!currentWeapon) return;
         if (!currentWeaponComponent) return;
         
-        Vector3 firePointPos = currentWeaponComponent.firePoint.transform.position;
-        Vector3 firePointForward = currentWeaponComponent.firePoint.transform.forward;
+        // consider multiple firepoints
+        Vector3 firePointPos = currentWeaponComponent.firePoints[0].transform.position;
+        Vector3 firePointForward = currentWeaponComponent.firePoints[0].transform.forward;
         
         // This aimpoint is used to show the physical aim direction of the weapon, including any obstacles that may be blocking it
         Ray ray = new Ray(firePointPos, firePointForward);
@@ -177,7 +179,7 @@ public class PlayerAimingSystem : MonoBehaviour
         targetsInCone.Clear();
         Collider[] targetsInRange = new Collider[9999];
         Physics.OverlapSphereNonAlloc(transform.position, maxConeAimDistance, targetsInRange);
-
+        
         Vector3 cameraPos = mainCamera.transform.position;
         Vector3 cameraForward = mainCamera.transform.forward;
         
@@ -186,11 +188,11 @@ public class PlayerAimingSystem : MonoBehaviour
             if (!target) continue;
             Vector3 directionToTarget = target.transform.position - mainCamera.transform.position;
             
-            if (Vector3.Angle(cameraForward, directionToTarget) > selectionConeWidthDegrees) continue;
+            if (Vector3.Angle(cameraForward, directionToTarget) > aimConeWidthDegrees) continue;
             if (!MouseTools.IsLayerInLayerMask(target.gameObject.layer, enemyLayerMask ) && !target.CompareTag("EnvironmentObstacle")) continue;
             Physics.Raycast(cameraPos, directionToTarget, out RaycastHit hit, maxAimDistance, nonTransparentLayerMask);
+            Debug.Log(target.name + " : " + hit.collider.name);
             if (hit.collider.gameObject != target.gameObject) continue;
-            
             targetsInCone.Add(target);
         }
     }
