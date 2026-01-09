@@ -18,14 +18,14 @@ public class WeaponSlot
 
 public class WeaponManager : MonoBehaviour
 {
-    public delegate void OnHandleWeaponInputs(GameObject validationObject, InputAction action, bool pressOrRelease);
+    public delegate void OnHandleWeaponInputs(GameObject validationObject, bool pressOrRelease, InputAction action = null);
     public static OnHandleWeaponInputs onHandleWeaponInputs;
     public delegate void OnSwapWeapons(GameObject validationObject, int weaponSlotIndex, float weaponIndex);
     public static OnSwapWeapons onSwapWeapons;
     public delegate void OnSwitchAmmoType(GameObject validationObject, GameObject newAmmoType, int weaponSlotIndex);
     public static OnSwitchAmmoType onSwitchAmmoType;
     
-    public static event Action<Weapon, WeaponSlot> OnSetWeapon;
+    public static event Action<GameObject, Weapon, WeaponSlot> OnSetWeapon;
     
     [SerializeField] private List<WeaponSlot> WeaponSlots;
     [SerializeField] private float weaponSwapTime;
@@ -54,6 +54,8 @@ public class WeaponManager : MonoBehaviour
         int counter = 0;
         foreach (WeaponSlot weaponSlot in WeaponSlots)
         {
+            if (weaponSlot.Weapons.IsNullOrEmpty()) continue;
+            
             GameObject newWeapon = Instantiate(weaponSlot.Weapons[0], weaponSlot.WeaponSlotObject.transform); // get saved last weapon
             weaponSlot.WeaponSlotObject.transform.GetChild(0).TryGetComponent(out Weapon weaponComponent);
             weaponSlot.CurrentWeapon = weaponComponent;
@@ -61,18 +63,23 @@ public class WeaponManager : MonoBehaviour
             
             // only set the main weapon slot, not the launcher (temp fix)
             if (counter > 0) continue;
-            OnSetWeapon?.Invoke(weaponSlot.CurrentWeapon, weaponSlot);
+            OnSetWeapon?.Invoke(gameObject, weaponSlot.CurrentWeapon, weaponSlot);
             counter++;
         }
     }
 
-    private void HandleWeaponInputs(GameObject validationObject, InputAction action, bool pressOrRelease)
+    private void HandleWeaponInputs(GameObject validationObject, bool pressOrRelease, InputAction action = null)
     {
         if (validationObject != gameObject) return;
         
         foreach (WeaponSlot weaponSlot in WeaponSlots)
         {
-            if (weaponSlot.Action.ToInputAction() != action) continue;
+            if (weaponSlot.Weapons.IsNullOrEmpty()) continue;
+            
+            if (weaponSlot.Action != null)
+            {
+                if (weaponSlot.Action.ToInputAction() != action) continue;
+            }
 
             switch (pressOrRelease)
             {
@@ -113,11 +120,12 @@ public class WeaponManager : MonoBehaviour
         await MouseTools.AwaitableTimer(weaponSwapTime);
         swappingWeapon = false;
         
-        OnSetWeapon?.Invoke(weaponSlot.CurrentWeapon, weaponSlot);
+        OnSetWeapon?.Invoke(gameObject, weaponSlot.CurrentWeapon, weaponSlot);
     }
 
     private void SwitchAmmoType(GameObject validationObject, GameObject newAmmoType, int weaponSlotIndex)
     {
+        if (!this) return;
         if (validationObject != gameObject) return;
         
         WeaponSlot weaponSlot = WeaponSlots[weaponSlotIndex];

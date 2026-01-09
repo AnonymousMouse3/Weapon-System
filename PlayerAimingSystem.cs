@@ -1,4 +1,4 @@
-using System;
+    using System;
 using System.Collections.Generic;
 using DG.Tweening;
 using MouseLib;
@@ -169,7 +169,7 @@ public class PlayerAimingSystem : MonoBehaviour
         if (!currentWeapon) return;
         
         weaponTween.Kill();
-        weaponTween = currentWeapon.transform.DOLookAt(targetWeaponAimpoint.transform.position, weaponAimTime);
+        //weaponTween = currentWeapon.transform.DOLookAt(targetWeaponAimpoint.transform.position, weaponAimTime);
         
         spellTween = spellHolder.transform.DOLookAt(targetWeaponAimpoint.transform.position, spellAimTime); // temp, move to separate method for spells
     }
@@ -191,7 +191,7 @@ public class PlayerAimingSystem : MonoBehaviour
             if (Vector3.Angle(cameraForward, directionToTarget) > aimConeWidthDegrees) continue;
             if (!MouseTools.IsLayerInLayerMask(target.gameObject.layer, enemyLayerMask ) && !target.CompareTag("EnvironmentObstacle")) continue;
             Physics.Raycast(cameraPos, directionToTarget, out RaycastHit hit, maxAimDistance, nonTransparentLayerMask);
-            Debug.Log(target.name + " : " + hit.collider.name);
+
             if (hit.collider.gameObject != target.gameObject) continue;
             targetsInCone.Add(target);
         }
@@ -229,8 +229,10 @@ public class PlayerAimingSystem : MonoBehaviour
         OnTargetLock?.Invoke(gameObject, closestTargetToCrosshair.gameObject);
     }
 
-    private void SetWeapon(Weapon newWeapon, WeaponSlot weaponSlot)
+    private void SetWeapon(GameObject validationObject, Weapon newWeapon, WeaponSlot weaponSlot)
     {
+        if (validationObject != gameObject) return;
+        
         currentWeapon = newWeapon.gameObject;
         currentWeaponComponent = newWeapon;
     }

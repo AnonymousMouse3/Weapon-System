@@ -6,6 +6,7 @@ using MyBox;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
 
+// todo use movement related values from movementsystem if present
 public class ProjectileSystem : MonoBehaviour
 {
     
@@ -15,6 +16,7 @@ public class ProjectileSystem : MonoBehaviour
     [SerializeField, ReadOnly] public GameObject trackingTarget;
     [SerializeField] public ProjectileComponent projectileComponent;
     
+    [SerializeField] public GameObject projectileOwner;
     [SerializeField] public Weapon weaponFiredFrom;
 
     private bool trackingAllowed;
