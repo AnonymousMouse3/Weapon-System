@@ -9,15 +9,14 @@ using Debug = UnityEngine.Debug;
 // todo use movement related values from movementsystem if present
 public class ProjectileSystem : MonoBehaviour
 {
-    
     public static event Action<GameObject, float, float, Vector3> OnImpact;
     
     [SerializeField] public Rigidbody rb;
     [SerializeField, ReadOnly] public GameObject trackingTarget;
     [SerializeField] public ProjectileComponent projectileComponent;
     
-    [SerializeField] public GameObject projectileOwner;
-    [SerializeField] public Weapon weaponFiredFrom;
+    [SerializeField] public GameObject projectileOwner; // the character who owns the projectile
+    [SerializeField] public Weapon weaponFiredFrom; // the weapon that fired it
 
     private bool trackingAllowed;
     private bool trackingDelayTimers;
@@ -28,6 +27,16 @@ public class ProjectileSystem : MonoBehaviour
     private bool engineAllowed;
     private bool beingDestroyed;
 
+    private void OnEnable()
+    {
+        Weapon.OnWeaponRelease += WeaponReleaseCheck;
+    }
+
+    private void OnDisable()
+    {
+        Weapon.OnWeaponRelease -= WeaponReleaseCheck;
+    }
+
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Awake()
     {
@@ -35,9 +44,11 @@ public class ProjectileSystem : MonoBehaviour
         {
             DestroyProjectile(projectileComponent.projectileLifetime);
         }
-        
-        rb = GetComponent<Rigidbody>();
-        rb.useGravity = false;
+
+        if (gameObject.TryGetComponent(out Rigidbody rb))
+        {
+            rb.useGravity = projectileComponent.projectileGravity;
+        }
         
 #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
         EngineTimers();
@@ -79,6 +90,11 @@ public class ProjectileSystem : MonoBehaviour
     public void RotateProjectile(Quaternion rotation)
     {
         transform.rotation = rotation;
+    }
+
+    public void ParentProjectile(GameObject newParent)
+    {
+        gameObject.transform.parent = newParent.transform;
     }
 
     private void HandleTracking()
@@ -185,6 +201,14 @@ public class ProjectileSystem : MonoBehaviour
     private void ApplyDrag()
     {
         rb.AddForce(-rb.linearVelocity * projectileComponent.projectileDragFactor, ForceMode.Force);
+    }
+
+    private void WeaponReleaseCheck(Weapon weapon)
+    {
+        if (!projectileComponent.destroyWhenWeaponReleases) return;
+        if (weaponFiredFrom != weapon) return;
+        
+        DestroyProjectile();
     }
 
     private void OnCollisionEnter(Collision other)

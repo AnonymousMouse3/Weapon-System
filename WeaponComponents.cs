@@ -39,6 +39,9 @@ public class ProjectileComponent
     public bool destroyOnImpact;
     public bool triggerOnImpact;
     public bool detonateWarheadsOnImpact;
+    public bool spawnAsChildOfWeapon;
+    public bool linkedToWeapon;
+    [ReadOnly(nameof(linkedToWeapon), true)] public bool destroyWhenWeaponReleases;
     
     [Tooltip("Velocity (m/s)")] public float initialVelocity;
     [Tooltip("Velocity (m/s). 0 = No limit.")] public float maxVelocity;

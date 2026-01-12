@@ -176,6 +176,7 @@ public class PlayerAimingSystem : MonoBehaviour
 
     private void FindTargetsInAimCone()
     {
+        if (!gameObject) return;
         targetsInCone.Clear();
         Collider[] targetsInRange = new Collider[9999];
         Physics.OverlapSphereNonAlloc(transform.position, maxConeAimDistance, targetsInRange);

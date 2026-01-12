@@ -24,6 +24,7 @@ public class Weapon : MonoBehaviour
     public static OnReloadWeapon onReloadWeapon;
     
     public static event Action OnWeaponShoot;
+    public static event Action<Weapon> OnWeaponRelease;
     public static event Action<float> OnAttackSpeedModifierChange;
     
     [SerializeField] public List<GameObject> firePoints;
@@ -113,6 +114,7 @@ public class Weapon : MonoBehaviour
         if (validationObject != weaponOwner) return;
         
         weaponComponent.isTriggerPulled = false;
+        OnWeaponRelease?.Invoke(this);
     }
 
     private async void TryFireWeaponLoop()
@@ -227,6 +229,8 @@ public class Weapon : MonoBehaviour
                 break;
         }
         
+        // weapon has shot successfully
+        OnWeaponShoot?.Invoke();
         cycleTask = CycleWeapon();
         
         // Remove ammo from the weapon (if it uses ammo)
@@ -306,14 +310,30 @@ public class Weapon : MonoBehaviour
         Quaternion projectileAngleWithSpread = selectedFirePoint.transform.rotation * Quaternion.Euler(spreadVector);
         
         GameObject newProjectile = Instantiate(projectileToSpawn, selectedFirePoint.transform.position, projectileAngleWithSpread);
-        newProjectile.TryGetComponent(out ProjectileSystem newProjectileSystem);
-
         OnWeaponShoot?.Invoke();
-
+        
+        newProjectile.TryGetComponent(out ProjectileSystem newProjectileSystem);
+        if (!newProjectileSystem)
+        {
+            newProjectileSystem = newProjectile.GetComponentInChildren<ProjectileSystem>();
+        }
+        
         if (!newProjectileSystem) return;
-        newProjectileSystem.ApplyVelocityToProjectile();
+
         newProjectileSystem.weaponFiredFrom = this;
+        newProjectileSystem.projectileOwner = weaponOwner;
         newProjectileSystem.projectileComponent.damageComponent.baseDamage = newProjectileSystem.projectileComponent.damageComponent.baseDamage * (1 + damageModifier);
+        
+        if (newProjectileSystem.TryGetComponent(out Rigidbody projectileRB))
+        {
+            newProjectileSystem.ApplyVelocityToProjectile();
+        }
+
+        if (newProjectileSystem.projectileComponent.spawnAsChildOfWeapon)
+        {
+            newProjectileSystem.ParentProjectile(gameObject);
+        }
+        
         //newProjectileSystem.SetProjectileTeam(LayerMask.LayerToName(weaponOwner.gameObject.layer));
                 
         if (!weaponComponent.passTargetToProjectile) return;
