@@ -16,6 +16,7 @@ public class PlayerAimingSystem : MonoBehaviour
     public Weapon CurrentEquippedWeapon => currentWeaponComponent; // Added this because I needed to access the current equipped weapon for the save system.
     
     [Separator("Runtime")]
+    public GameObject ClosestTargetToCrosshair => closestTargetToCrosshair;
     [SerializeField, ReadOnly] private GameObject closestTargetToCrosshair;
     [SerializeField, ReadOnly] private List<Collider> targetsInCone;
     private Camera mainCamera;
@@ -193,6 +194,7 @@ public class PlayerAimingSystem : MonoBehaviour
             if (!MouseTools.IsLayerInLayerMask(target.gameObject.layer, enemyLayerMask ) && !target.CompareTag("EnvironmentObstacle")) continue;
             Physics.Raycast(cameraPos, directionToTarget, out RaycastHit hit, maxAimDistance, nonTransparentLayerMask);
 
+            if (!target || !hit.collider) continue;
             if (hit.collider.gameObject != target.gameObject) continue;
             targetsInCone.Add(target);
         }

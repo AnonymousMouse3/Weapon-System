@@ -337,7 +337,8 @@ public class Weapon : MonoBehaviour
         //newProjectileSystem.SetProjectileTeam(LayerMask.LayerToName(weaponOwner.gameObject.layer));
                 
         if (!weaponComponent.passTargetToProjectile) return;
-        //newProjectileSystem.ChangeTrackingTarget(targetingSystem.target);
+        weaponOwner.TryGetComponent(out PlayerAimingSystem playerAimingSystem);
+        newProjectileSystem.ChangeTrackingTarget(playerAimingSystem.ClosestTargetToCrosshair);
     }
     
     private async Task CycleWeapon()
