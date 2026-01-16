@@ -10,7 +10,7 @@ public class PlayerAimingSystem : MonoBehaviour
 {
     public static event Action<GameObject, GameObject> OnTargetLock;
     public static event Action<GameObject, GameObject> OnNoTarget;
-    public static event Action<Vector3, float> OnMoveWeaponCrosshair;
+    public static event Action<GameObject, Vector3, float> OnMoveWeaponCrosshair;
     public static event Action<Vector3, float> OnMoveSpellCrosshair;
 
     public Weapon CurrentEquippedWeapon => currentWeaponComponent; // Added this because I needed to access the current equipped weapon for the save system.
@@ -40,6 +40,13 @@ public class PlayerAimingSystem : MonoBehaviour
     [SerializeField] private GameObject currentWeapon;
     [SerializeField] private Weapon currentWeaponComponent;
     [SerializeField] private GameObject spellHolder;
+
+    public GameObject TargetWeaponAimpoint
+    {
+        get => targetWeaponAimpoint;
+        set => targetWeaponAimpoint = value;
+    }
+
     [SerializeField] private GameObject targetWeaponAimpoint;
     [SerializeField] private GameObject spellAimpoint;
     [SerializeField] private float weaponAimTime; // maybe decide this per-spell and per-weapon
@@ -138,7 +145,7 @@ public class PlayerAimingSystem : MonoBehaviour
             indicatorPos = ray.GetPoint(maxAimDistance);
         }
 
-        OnMoveWeaponCrosshair?.Invoke(mainCamera.WorldToScreenPoint(indicatorPos), weaponAimTime);
+        OnMoveWeaponCrosshair?.Invoke(gameObject, mainCamera.WorldToScreenPoint(indicatorPos), weaponAimTime);
         
         if (!debugAim) return;
         Debug.DrawRay(firePointPos, firePointForward * maxAimDistance, Color.green, 0.01f);
@@ -162,7 +169,7 @@ public class PlayerAimingSystem : MonoBehaviour
         OnMoveSpellCrosshair?.Invoke(mainCamera.WorldToScreenPoint(indicatorPos), spellAimTime);
         
         if (!debugAim) return;
-        Debug.DrawRay(spellHolderPos, spellHolderForward * maxAimDistance, Color.blueViolet, 0.01f);
+        Debug.DrawRay(spellHolderPos, spellHolderForward * maxAimDistance, Color.blue, 0.01f);
     }
     
     private void AimWeapon()

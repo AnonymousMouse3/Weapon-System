@@ -138,7 +138,7 @@ public class ProjectileSystem : MonoBehaviour
 #pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
             rb.AddForce(-(transform.position - trackingTarget.transform.position) * (projectileComponent.trackingForce * 50), ForceMode.Impulse);
             
-            Debug.DrawRay(transform.position, transform.forward * 10, Color.darkGreen, 2f);
+            Debug.DrawRay(transform.position, transform.forward * 10, Color.green, 2f);
         }
     }
 
