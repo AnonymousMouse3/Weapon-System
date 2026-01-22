@@ -10,36 +10,17 @@ public class PlayerAimingSystem : MonoBehaviour
 {
     public static event Action<GameObject, GameObject> OnTargetLock;
     public static event Action<GameObject, GameObject> OnNoTarget;
-    public static event Action<GameObject, Vector3, float> OnMoveWeaponCrosshair;
-    public static event Action<Vector3, float> OnMoveSpellCrosshair;
-
-    public Weapon CurrentEquippedWeapon => currentWeaponComponent; // Added this because I needed to access the current equipped weapon for the save system.
+    public static event Action<GameObject, Vector3, float> OnPlaceWorldCrosshair;
     
     [Separator("Runtime")]
     public GameObject ClosestTargetToCrosshair => closestTargetToCrosshair;
     [SerializeField, ReadOnly] private GameObject closestTargetToCrosshair;
     [SerializeField, ReadOnly] private List<Collider> targetsInCone;
     private Camera mainCamera;
-    private Tween weaponTween;
-    private Tween spellTween;
-
-    public SpellAimMode CurrentSpellAimMode
-    {
-        get => currentSpellAimMode;
-        set => currentSpellAimMode = value;
-    }
-    [SerializeField] private SpellAimMode currentSpellAimMode;
-    public enum SpellAimMode
-    {
-        Crosshair,
-        LockOn,
-        GroundOnly
-    }
     
     [Separator("Settings")]
-    [SerializeField] private GameObject currentWeapon;
-    [SerializeField] private Weapon currentWeaponComponent;
-    [SerializeField] private GameObject spellHolder;
+    public List<GameObject> WeaponObjectsToAim => weaponObjectsToAim; // Added this because I needed to access the current equipped weapon for the save system.
+    [FormerlySerializedAs("weaponsToAim")] [SerializeField, ReadOnly] private List<GameObject> weaponObjectsToAim;
 
     public GameObject TargetWeaponAimpoint
     {
@@ -48,16 +29,12 @@ public class PlayerAimingSystem : MonoBehaviour
     }
 
     [SerializeField] private GameObject targetWeaponAimpoint;
-    [SerializeField] private GameObject spellAimpoint;
-    [SerializeField] private float weaponAimTime; // maybe decide this per-spell and per-weapon
-    [SerializeField] private float spellAimTime;
     [SerializeField] private float maxAimDistance;
     [SerializeField] private float maxConeAimDistance;
-    [FormerlySerializedAs("selectionConeWidthDegrees")] [SerializeField] private float aimConeWidthDegrees;
+    [SerializeField] private float aimConeWidthDegrees;
     
     [SerializeField] LayerMask enemyLayerMask;
     [SerializeField] LayerMask nonTransparentLayerMask;
-    [SerializeField] private SpellAimMode currentAimMode1;
     
     [Separator("Debug")]
     [SerializeField] private bool debugAim;
@@ -77,33 +54,38 @@ public class PlayerAimingSystem : MonoBehaviour
     {
         mainCamera = Camera.main;
         targetsInCone = new List<Collider>();
-
-        weaponTween = currentWeapon.transform.DOLookAt(targetWeaponAimpoint.transform.position, 0.1f);
-        spellTween = spellHolder.transform.DOLookAt(targetWeaponAimpoint.transform.position, 0.1f);
-
-        currentWeapon.transform.GetChild(0).TryGetComponent(out currentWeaponComponent);
     }
 
     // Update is called once per frame
     void FixedUpdate()
     {
         PlaceCameraAimpoint();
-        AimWeapon();
-        PlaceWeaponAimpoint();
-        PlaceSpellAimpoint();
 
-        switch (currentSpellAimMode)
+        foreach (GameObject weaponObject in weaponObjectsToAim)
         {
-            case SpellAimMode.Crosshair:
-                break;
+            if (!weaponObject) return;
             
-            case SpellAimMode.LockOn:
-                FindTargetsInAimCone();
-                SpellLockOn();
-                break;
+            weaponObject.TryGetComponent(out Weapon weapon);
+            WeaponComponent weaponComponent = weapon.weaponScriptableObject.weaponComponent;
+            if (!weapon) return;
+            if (weaponComponent == null) return;
             
-            case SpellAimMode.GroundOnly:
-                break;
+            AimWeapon(weaponObject, weapon, weaponComponent);
+            PlaceWorldAimpoint(weaponObject, weapon, weaponComponent);
+
+            switch (weaponComponent.currentAimMode)
+            {
+                case WeaponComponent.AimModes.Crosshair:
+                    break;
+            
+                case WeaponComponent.AimModes.LockOn:
+                    FindTargetsInAimCone();
+                    SpellLockOn();
+                    break;
+            
+                case WeaponComponent.AimModes.GroundOnly:
+                    break;
+            }
         }
     }
 
@@ -125,14 +107,11 @@ public class PlayerAimingSystem : MonoBehaviour
         Debug.DrawRay(mainCamera.transform.position, mainCamera.transform.forward * maxAimDistance, Color.blue, 0.01f);
     }
 
-    private void PlaceWeaponAimpoint()
+    private void PlaceWorldAimpoint(GameObject weaponObject, Weapon weapon, WeaponComponent weaponComponent)
     {
-        if (!currentWeapon) return;
-        if (!currentWeaponComponent) return;
-        
         // consider multiple firepoints
-        Vector3 firePointPos = currentWeaponComponent.firePoints[0].transform.position;
-        Vector3 firePointForward = currentWeaponComponent.firePoints[0].transform.forward;
+        Vector3 firePointPos = weapon.firePoints[0].transform.position;
+        Vector3 firePointForward = weapon.firePoints[0].transform.forward;
         
         // This aimpoint is used to show the physical aim direction of the weapon, including any obstacles that may be blocking it
         Ray ray = new Ray(firePointPos, firePointForward);
@@ -145,41 +124,21 @@ public class PlayerAimingSystem : MonoBehaviour
             indicatorPos = ray.GetPoint(maxAimDistance);
         }
 
-        OnMoveWeaponCrosshair?.Invoke(gameObject, mainCamera.WorldToScreenPoint(indicatorPos), weaponAimTime);
+        OnPlaceWorldCrosshair?.Invoke(gameObject, mainCamera.WorldToScreenPoint(indicatorPos), 0.01f);
         
         if (!debugAim) return;
         Debug.DrawRay(firePointPos, firePointForward * maxAimDistance, Color.green, 0.01f);
     }
     
-    private void PlaceSpellAimpoint()
+    private void AimWeapon(GameObject weaponObject, Weapon weapon, WeaponComponent weaponComponent)
     {
-        Vector3 spellHolderPos = spellHolder.transform.position;
-        Vector3 spellHolderForward = spellHolder.transform.forward;
-        
-        Ray ray = new Ray(spellHolderPos, spellHolderForward);
-        Physics.Raycast(ray.origin, ray.direction, out RaycastHit hit, maxAimDistance, nonTransparentLayerMask);
-        
-        Vector3 indicatorPos = hit.point;
-        
-        if (!hit.collider)
+        //if (currentWeapon.weaponTween == null)
         {
-            indicatorPos = ray.GetPoint(maxAimDistance);
+            // make this an actual calc from ergo and weight etc
+            weapon.weaponTween = weaponObject.transform.DOLookAt(targetWeaponAimpoint.transform.position, weaponComponent.weaponWeight)/*.SetAutoKill(false)*/; // this is causing memory leak lol
         }
-
-        OnMoveSpellCrosshair?.Invoke(mainCamera.WorldToScreenPoint(indicatorPos), spellAimTime);
         
-        if (!debugAim) return;
-        Debug.DrawRay(spellHolderPos, spellHolderForward * maxAimDistance, Color.blue, 0.01f);
-    }
-    
-    private void AimWeapon()
-    {
-        if (!currentWeapon) return;
-        
-        weaponTween.Kill();
-        //weaponTween = currentWeapon.transform.DOLookAt(targetWeaponAimpoint.transform.position, weaponAimTime);
-        
-        spellTween = spellHolder.transform.DOLookAt(targetWeaponAimpoint.transform.position, spellAimTime); // temp, move to separate method for spells
+        weapon.weaponTween = weaponObject.transform.DOLookAt(targetWeaponAimpoint.transform.position, weaponComponent.weaponWeight);
     }
 
     private void FindTargetsInAimCone()
@@ -242,8 +201,13 @@ public class PlayerAimingSystem : MonoBehaviour
     private void SetWeapon(GameObject validationObject, Weapon newWeapon, WeaponSlot weaponSlot)
     {
         if (validationObject != gameObject) return;
+
+        foreach (GameObject weaponObject in weaponObjectsToAim)
+        {
+            if (!weaponSlot.Weapons.Contains(weaponObject)) continue;
+            weaponObjectsToAim.Remove(weaponObject);
+        }
         
-        currentWeapon = newWeapon.gameObject;
-        currentWeaponComponent = newWeapon;
+        weaponObjectsToAim.Add(newWeapon.gameObject);
     }
 }
