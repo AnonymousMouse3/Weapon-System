@@ -1,16 +1,18 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using DG.Tweening;
 using MouseLib;
 using MyBox;
 using UnityEngine;
+using UnityEngine.Serialization;
 using Debug = UnityEngine.Debug;
 
 // todo use movement related values from movementsystem if present
 public class ProjectileSystem : MonoBehaviour
 {
     public static event Action<GameObject, float, float, Vector3> OnImpact;
-    
+    [FormerlySerializedAs("lingeringEffectsOnDestroy")] [SerializeField] public List<GameObject> dontDestroyLingeringEffects;
     [SerializeField] public Rigidbody rb;
     [SerializeField, ReadOnly] public GameObject trackingTarget;
     [SerializeField] public ProjectileComponent projectileComponent;
@@ -303,7 +305,7 @@ public class ProjectileSystem : MonoBehaviour
     {
         if (validationObject != gameObject) return;
         
-        //transform.DOKill(this);
+        
         DestroyProjectile();
     }
 
@@ -314,34 +316,39 @@ public class ProjectileSystem : MonoBehaviour
         if (beingDestroyed) return;
         beingDestroyed = true;
         
+        //transform.DOKill(this);
+        
         // Preserve trails, projectiles, sound emitters, etc.
         // The effects themselves are under an empty GameObject named "Effects" which is unparented from the projectile
         // as Unity will restart particle systems if their GameObject is unparented directly
         // it's an old bug apparently
-        foreach (Transform child in transform)
+        if (!dontDestroyLingeringEffects.IsNullOrEmpty())
         {
-            child.parent = null;
-            
-            foreach (Transform subChild in child)
+            foreach (GameObject child in dontDestroyLingeringEffects)
             {
-                subChild.gameObject.TryGetComponent(out ParticleSystem childParticleSystem);
-                subChild.gameObject.TryGetComponent(out TrailRenderer childTrail);
-
-                if (childParticleSystem)
+                child.transform.parent = null;
+            
+                /*foreach (Transform subChild in child)
                 {
-                    childParticleSystem.Stop();
-                    continue;
-                }
+                    subChild.gameObject.TryGetComponent(out ParticleSystem childParticleSystem);
+                    subChild.gameObject.TryGetComponent(out TrailRenderer childTrail);
 
-                if (childTrail)
-                {
-                    continue;
-                }
-                
-                Destroy(subChild.gameObject); 
+                    if (childParticleSystem)
+                    {
+                        childParticleSystem.Stop();
+                        continue;
+                    }
+
+                    if (childTrail)
+                    {
+                        continue;
+                    }
+
+                    Destroy(subChild.gameObject);
+                }*/
             }
         }
-
+        
         Destroy(gameObject);
     }
 }

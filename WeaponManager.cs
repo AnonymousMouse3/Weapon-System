@@ -47,7 +47,7 @@ public class WeaponManager : MonoBehaviour
     }
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Awake()
+    void Start()
     {
         if (WeaponSlots.IsNullOrEmpty()) return;
         
@@ -56,9 +56,9 @@ public class WeaponManager : MonoBehaviour
         {
             if (weaponSlot.Weapons.IsNullOrEmpty()) continue;
             
-            GameObject newWeapon = Instantiate(weaponSlot.Weapons[0], weaponSlot.WeaponSlotObject.transform); // get saved last weapon
-            weaponSlot.WeaponSlotObject.transform.GetChild(0).TryGetComponent(out Weapon weaponComponent);
-            weaponSlot.CurrentWeapon = weaponComponent;
+            GameObject newWeaponGameObject = Instantiate(weaponSlot.Weapons[0], weaponSlot.WeaponSlotObject.transform); // get saved last weapon
+            weaponSlot.WeaponSlotObject.transform.GetChild(0).TryGetComponent(out Weapon weapon);
+            weaponSlot.CurrentWeapon = weapon;
             // use this to cache/store the current weapon's stats
             
             // only set the main weapon slot, not the launcher (temp fix)

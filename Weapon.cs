@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using DG.Tweening;
 using MouseLib;
 using MyBox;
 using UnityEngine;
@@ -26,6 +27,9 @@ public class Weapon : MonoBehaviour
     public static event Action OnWeaponShoot;
     public static event Action<Weapon> OnWeaponRelease;
     public static event Action<float> OnAttackSpeedModifierChange;
+
+    [SerializeField, ReadOnly] public Tween weaponTween;
+    [SerializeField, ReadOnly] public GameObject weaponAimpointObject;
     
     [SerializeField] public List<GameObject> firePoints;
     [SerializeField] public bool cycleFirePoints;

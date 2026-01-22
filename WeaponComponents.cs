@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using MyBox;
 using UnityEngine;
 using UnityEngine.Serialization;
+using UnityEngine.UI;
 
 // Credit to DeadCows' MyBox for additional editor attributes - https://github.com/Deadcows/MyBox/
 
@@ -168,6 +169,14 @@ public class WeaponComponent
         ReadyToFire,
     }
     
+    public AimModes currentAimMode;
+    public enum AimModes
+    {
+        Crosshair,
+        LockOn,
+        GroundOnly
+    }
+    
     [ReadOnly] public ReloadState reloadState;
     public enum ReloadState
     {
@@ -176,6 +185,10 @@ public class WeaponComponent
         Reloading,
         ReadyToFire,
     }
+    
+    [Separator("Unsorted Settings")]
+    public Image weaponCrosshair;
+    public Image weaponAimpoint;
     
     [Separator("Technical Settings")]
     public float hitscanRange;
@@ -188,6 +201,11 @@ public class WeaponComponent
 
     [Separator("AI Settings")]
     public float expectedDamage;
+    
+    [Separator("Handling Settings")]
+    public float weaponErgonomics;
+    public float weaponWeight;
+    public float weaponSway;
     
     [Separator("Projectile Settings")]
     public List<GameObject> projectilePrefabs;
