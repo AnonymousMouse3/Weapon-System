@@ -138,7 +138,7 @@ public class Weapon : MonoBehaviour
             return;
         }
         
-        switch (weaponComponent.currentFireMode)
+        /*switch (weaponComponent.currentFireMode)
         {
             case WeaponComponent.FireModes.SemiAuto:
                 TryFireWeapon();
@@ -163,7 +163,7 @@ public class Weapon : MonoBehaviour
                 
                 TryFireWeaponLoop();
                 break;
-        }
+        }*/
     }
     
     private void TryFireWeapon()
@@ -341,8 +341,8 @@ public class Weapon : MonoBehaviour
         //newProjectileSystem.SetProjectileTeam(LayerMask.LayerToName(weaponOwner.gameObject.layer));
                 
         if (!weaponComponent.passTargetToProjectile) return;
-        weaponOwner.TryGetComponent(out PlayerAimingSystem playerAimingSystem);
-        newProjectileSystem.ChangeTrackingTarget(playerAimingSystem.ClosestTargetToCrosshair);
+        weaponOwner.TryGetComponent(out AimingSystem playerAimingSystem);
+        newProjectileSystem.ChangeTrackingTarget(playerAimingSystem.LockOnTarget);
     }
     
     private async Task CycleWeapon()

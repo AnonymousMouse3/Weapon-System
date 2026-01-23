@@ -147,20 +147,12 @@ public class WeaponComponent
     // e.g. a gun's chamber can only be loaded if it has one
     // Thus setting hasChamber to false will set chamberLoaded to read only
 
-    [Separator("Runtime States")]
+    [Separator("Runtime States")] // move these to their individual sections at the top
     [ReadOnly] public bool isTriggerPulled;
     
     [ReadOnly, ConditionalField(nameof(hasChamber))] public bool isChamberLoaded;
     [ConditionalField(nameof(hasMagazine))] public int currentMagazineAmmo;
     [ConditionalField(nameof(hasReserveAmmo))] public int currentReserveAmmo;
-    
-    public FireModes currentFireMode;
-    public enum FireModes
-    {
-        SemiAuto = 0,
-        FullAuto = 1,
-        Burst = 2,
-    }
     
     [ReadOnly] public FiringState firingState;
     public enum FiringState
@@ -169,8 +161,8 @@ public class WeaponComponent
         ReadyToFire,
     }
     
-    public AimModes currentAimMode;
-    public enum AimModes
+    public WeaponAimType currentWeaponAimType;
+    public enum WeaponAimType
     {
         Crosshair,
         LockOn,
@@ -219,15 +211,24 @@ public class WeaponComponent
     [Separator("Fire Mode Settings")]
     [Tooltip("Rounds/min")] public float fireRate;
     [ReadOnly, Tooltip("Time (s)")] public float fireInterval; // Set at runtime by Weapon
-    
+
+    public bool test;
+    public CurrentFireMode currentFireMode;
+    public enum CurrentFireMode
+    {
+        
+        SemiAuto = 0,
+        [ReadOnly(nameof(FireModes), true, FireModes.FullAuto)] FullAuto = 1,
+        [ReadOnly(nameof(FireModes), true, FireModes.Burst)] Burst = 2,
+    }
     public bool canSwitchFireModes;
     
-    public AvailableFireModes availableFireModes;
-    [Flags] public enum AvailableFireModes
+    public FireModes availableFireModes;
+    [Flags] public enum FireModes
     {
-        SemiAuto = 0x1,
-        FullAuto = 0x2,
-        Burst = 0x4,
+        SemiAuto = 0,
+        FullAuto = 1,
+        Burst = 2,
     }
     
     public int burstLength;

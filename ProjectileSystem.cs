@@ -305,7 +305,6 @@ public class ProjectileSystem : MonoBehaviour
     {
         if (validationObject != gameObject) return;
         
-        
         DestroyProjectile();
     }
 
@@ -316,10 +315,12 @@ public class ProjectileSystem : MonoBehaviour
         if (beingDestroyed) return;
         beingDestroyed = true;
         
-        //transform.DOKill(this);
+        transform.DOKill(this);
         
-        // Preserve trails, projectiles, sound emitters, etc.
-        // The effects themselves are under an empty GameObject named "Effects" which is unparented from the projectile
+        // Preserve any effects within dontDestroyLingeringEffects, such as trails, audio, particles
+        // Anything not in this list will be destroyed with the projectile
+        
+        // Particles must be placed under a Particle Parent empty gameobject
         // as Unity will restart particle systems if their GameObject is unparented directly
         // it's an old bug apparently
         if (!dontDestroyLingeringEffects.IsNullOrEmpty())
@@ -327,25 +328,6 @@ public class ProjectileSystem : MonoBehaviour
             foreach (GameObject child in dontDestroyLingeringEffects)
             {
                 child.transform.parent = null;
-            
-                /*foreach (Transform subChild in child)
-                {
-                    subChild.gameObject.TryGetComponent(out ParticleSystem childParticleSystem);
-                    subChild.gameObject.TryGetComponent(out TrailRenderer childTrail);
-
-                    if (childParticleSystem)
-                    {
-                        childParticleSystem.Stop();
-                        continue;
-                    }
-
-                    if (childTrail)
-                    {
-                        continue;
-                    }
-
-                    Destroy(subChild.gameObject);
-                }*/
             }
         }
         

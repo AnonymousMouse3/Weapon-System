@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using JetBrains.Annotations;
 using MouseLib;
 using MyBox;
 using UnityEditor;
@@ -27,7 +28,13 @@ public class WeaponManager : MonoBehaviour
     
     public static event Action<GameObject, Weapon, WeaponSlot> OnSetWeapon;
     
-    [SerializeField] private List<WeaponSlot> WeaponSlots;
+    public List<WeaponSlot> WeaponSlots
+    {
+        get => weaponSlots;
+        set => weaponSlots  = value;
+    }
+    
+    [SerializeField] private List<WeaponSlot> weaponSlots;
     [SerializeField] private float weaponSwapTime;
 
     private bool swappingWeapon;
@@ -49,10 +56,10 @@ public class WeaponManager : MonoBehaviour
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
-        if (WeaponSlots.IsNullOrEmpty()) return;
+        if (weaponSlots.IsNullOrEmpty()) return;
         
         int counter = 0;
-        foreach (WeaponSlot weaponSlot in WeaponSlots)
+        foreach (WeaponSlot weaponSlot in weaponSlots)
         {
             if (weaponSlot.Weapons.IsNullOrEmpty()) continue;
             
@@ -72,11 +79,11 @@ public class WeaponManager : MonoBehaviour
     {
         if (validationObject != gameObject) return;
         
-        foreach (WeaponSlot weaponSlot in WeaponSlots)
+        foreach (WeaponSlot weaponSlot in weaponSlots)
         {
             if (weaponSlot.Weapons.IsNullOrEmpty()) continue;
             
-            if (weaponSlot.Action != null)
+            if (weaponSlot.Action)
             {
                 if (weaponSlot.Action.ToInputAction() != action) continue;
             }
@@ -99,7 +106,7 @@ public class WeaponManager : MonoBehaviour
     {
         if (validationObject != gameObject) return;
         
-        WeaponSlot weaponSlot = WeaponSlots[weaponSlotIndex];
+        WeaponSlot weaponSlot = weaponSlots[weaponSlotIndex];
         
         weaponSlot.Weapons[(int)weaponIndex].TryGetComponent(out Weapon newWeaponComponent);
         if (weaponSlot.CurrentWeapon.weaponScriptableObject == newWeaponComponent.weaponScriptableObject) return;
@@ -128,7 +135,7 @@ public class WeaponManager : MonoBehaviour
         if (!this) return;
         if (validationObject != gameObject) return;
         
-        WeaponSlot weaponSlot = WeaponSlots[weaponSlotIndex];
+        WeaponSlot weaponSlot = weaponSlots[weaponSlotIndex];
         
         if (!weaponSlot.CurrentWeapon.weaponScriptableObject.weaponComponent.projectilePrefabs.Contains(newAmmoType)) return;
         weaponSlot.CurrentWeapon.currentProjectile = newAmmoType;
