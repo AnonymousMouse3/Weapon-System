@@ -211,18 +211,9 @@ public class WeaponComponent
     [Separator("Fire Mode Settings")]
     [Tooltip("Rounds/min")] public float fireRate;
     [ReadOnly, Tooltip("Time (s)")] public float fireInterval; // Set at runtime by Weapon
-
-    public bool test;
-    public CurrentFireMode currentFireMode;
-    public enum CurrentFireMode
-    {
-        
-        SemiAuto = 0,
-        [ReadOnly(nameof(FireModes), true, FireModes.FullAuto)] FullAuto = 1,
-        [ReadOnly(nameof(FireModes), true, FireModes.Burst)] Burst = 2,
-    }
-    public bool canSwitchFireModes;
     
+    public bool canSwitchFireModes;
+    public FireModes currentFireMode;
     public FireModes availableFireModes;
     [Flags] public enum FireModes
     {

@@ -201,7 +201,7 @@ public class AimingSystem : MonoBehaviour
             // make this an actual calc from ergo and weight etc
             weapon.weaponTween = weaponObject.transform.DOLookAt(localTarget.transform.position, weaponComponent.weaponWeight).SetAutoKill(false); // this is causing memory leak maybe lol
         }
-        
+        weapon.weaponTween.Kill();
         weapon.weaponTween = weaponObject.transform.DOLookAt(localTarget.transform.position, weaponComponent.weaponWeight);
     }
 

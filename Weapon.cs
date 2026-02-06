@@ -137,8 +137,7 @@ public class Weapon : MonoBehaviour
             burstCounter = 0;
             return;
         }
-        
-        /*switch (weaponComponent.currentFireMode)
+        switch (weaponComponent.currentFireMode)
         {
             case WeaponComponent.FireModes.SemiAuto:
                 TryFireWeapon();
@@ -163,7 +162,7 @@ public class Weapon : MonoBehaviour
                 
                 TryFireWeaponLoop();
                 break;
-        }*/
+        }
     }
     
     private void TryFireWeapon()
