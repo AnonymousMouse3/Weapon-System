@@ -29,7 +29,6 @@ public class Weapon : MonoBehaviour
     public static event Action<float> OnAttackSpeedModifierChange;
 
     [SerializeField, ReadOnly] public Tween weaponTween;
-    [SerializeField, ReadOnly] public GameObject weaponAimpointObject;
     
     [SerializeField] public List<GameObject> firePoints;
     [SerializeField] public bool cycleFirePoints;
@@ -41,6 +40,13 @@ public class Weapon : MonoBehaviour
         set => weaponOwner = value;
     }
     [SerializeField, ReadOnly] private GameObject weaponOwner;
+    
+    [HideInInspector] public WeaponSlot WeaponSlot 
+    {
+        get => weaponSlot;
+        set => weaponSlot = value;
+    }
+    private WeaponSlot weaponSlot;
     
     //[SerializeField] private TargetingSystem targetingSystem;
     [SerializeField, DisplayInspector] public WeaponScriptableObject weaponScriptableObject; // make property
@@ -206,6 +212,7 @@ public class Weapon : MonoBehaviour
     
     private void FireWeapon()
     {
+        if (firePoints.IsNullOrEmpty()) return;
         Transform selectedFirePoint = firePoints[firePointCounter].transform;
 
         if (cycleFirePoints) firePointCounter++;
@@ -340,7 +347,7 @@ public class Weapon : MonoBehaviour
         //newProjectileSystem.SetProjectileTeam(LayerMask.LayerToName(weaponOwner.gameObject.layer));
                 
         if (!weaponComponent.passTargetToProjectile) return;
-        weaponOwner.TryGetComponent(out AimingSystem playerAimingSystem);
+        weaponOwner.TryGetComponent(out PlayerAimingSystem playerAimingSystem);
         newProjectileSystem.ChangeTrackingTarget(playerAimingSystem.LockOnTarget);
     }
     

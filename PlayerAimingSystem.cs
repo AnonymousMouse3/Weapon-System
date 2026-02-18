@@ -3,34 +3,37 @@ using System.Collections.Generic;
 using DG.Tweening;
 using MouseLib;
 using MyBox;
+using Spellslinger.UI;
 using UnityEngine;
 using UnityEngine.Serialization;
 using UnityEngine.TextCore.Text;
 
-public class AimingSystem : MonoBehaviour
+public class PlayerAimingSystem : MonoBehaviour
 {
-    public delegate void OnSetAimMode(GameObject validationObject, AimMode newAimMode);
-    public static OnSetAimMode onSetAimMode;
+    public delegate void OnSetAIAimTargetingMode(GameObject validationObject, AIAimTargetingMode newAIAimTargetingMode);
+    public static OnSetAIAimTargetingMode onSetAIAimTargetingMode;
+    public delegate void OnSetAimType(GameObject validationObject, WeaponComponent.WeaponAimType newAimType);
+    public static OnSetAimType onSetAimType;
     public delegate void OnSetTargetAimpoint(GameObject validationObject, GameObject newTargetAimpoint);
     public static OnSetTargetAimpoint onSetTargetAimpoint;
     public delegate void OnSetTargetCharacter(GameObject validationObject, GameObject newTargetCharacter);
     public static OnSetTargetCharacter onSetTargetCharacter;
-    public static event Action OnReportAimState;
+    public static event Action OnReportAIAimState;
     public static event Action<GameObject, GameObject> OnTargetLock;
     public static event Action<GameObject, GameObject> OnNoTarget;
     public static event Action<GameObject, Vector3, float> OnPlaceWorldCrosshair;
     
     [Separator("Runtime")]
-    public AimState currentAimState;
-    public enum AimState
+    public AIAimState currentAIAimState;
+    public enum AIAimState
     {
         Idle,
         Aiming,
         Aimed,
     }
     
-    public AimMode currentAimMode;
-    public enum AimMode
+    public AIAimTargetingMode currentAIAimTargetingMode;
+    public enum AIAimTargetingMode
     {
         AimAtPoint,
         AimAtTarget,
@@ -39,6 +42,8 @@ public class AimingSystem : MonoBehaviour
     public List<GameObject> WeaponObjectsToAim => weaponObjectsToAim; // Added this because I needed to access the current equipped weapon for the save system.
     [SerializeField, ReadOnly] private List<GameObject> weaponObjectsToAim;
 
+    public bool AimingAllowed = true;
+    
     public GameObject LockOnTarget => lockOnTarget;
     [SerializeField, ReadOnly] private GameObject lockOnTarget;
     [SerializeField, ReadOnly] private List<Collider> targetsInCone; // make available to targeting system
@@ -77,18 +82,22 @@ public class AimingSystem : MonoBehaviour
 
     void OnEnable()
     {
-        WeaponManager.OnSetWeapon += SetWeapon;
+        WeaponManager.OnRegisterWeaponAiming += RegisterWeapon;
+        WeaponManager.OnUnregisterWeaponAiming += UnregisterWeapon;
+        WeaponManager.OnSetAimingAllowed += SetAimingAllowed;
         onSetTargetCharacter += SetTargetCharacter;
         onSetTargetAimpoint += SetTargetAimpoint;
-        onSetAimMode += SetAimMode;
+        onSetAIAimTargetingMode += SetAIAimMode;
     }
 
     void OnDisable()
     {
-        WeaponManager.OnSetWeapon -= SetWeapon;
+        WeaponManager.OnRegisterWeaponAiming -= RegisterWeapon;
+        WeaponManager.OnUnregisterWeaponAiming -= UnregisterWeapon;
+        WeaponManager.OnSetAimingAllowed -= SetAimingAllowed;
         onSetTargetCharacter -= SetTargetCharacter;
         onSetTargetAimpoint -= SetTargetAimpoint;
-        onSetAimMode -= SetAimMode;
+        onSetAIAimTargetingMode -= SetAIAimMode;
     }
     
     // Start is called once before the first execution of Update after the MonoBehaviour is created
@@ -106,6 +115,8 @@ public class AimingSystem : MonoBehaviour
             PlaceCameraAimpoint();
         }
 
+        if (weaponObjectsToAim.IsNullOrEmpty()) return;
+        
         foreach (GameObject weaponObject in weaponObjectsToAim)
         {
             if (!weaponObject) return;
@@ -114,10 +125,14 @@ public class AimingSystem : MonoBehaviour
             WeaponComponent weaponComponent = weapon.weaponScriptableObject.weaponComponent;
             if (!weapon) return;
             if (weaponComponent == null) return;
-            
-            AimWeapon(weaponObject, weapon, weaponComponent);
-            PlaceWorldAimpoint(weaponObject, weapon, weaponComponent);
 
+            if (AimingAllowed)
+            {
+                AimWeapon(weaponObject, weapon, weaponComponent);
+            }
+            
+            PlaceWorldAimpoint(weaponObject, weapon, weaponComponent);
+            
             switch (weaponComponent.currentWeaponAimType)
             {
                 case WeaponComponent.WeaponAimType.Crosshair:
@@ -161,6 +176,12 @@ public class AimingSystem : MonoBehaviour
     private void PlaceWorldAimpoint(GameObject weaponObject, Weapon weapon, WeaponComponent weaponComponent)
     {
         // consider multiple firepoints
+        if (weapon.firePoints.IsNullOrEmpty())
+        {
+            Debug.Log("Weapon has no fire points. Assign one or multiple in the inspector and determine if each should use a separate crosshair");
+            return;
+        }
+        
         Vector3 firePointPos = weapon.firePoints[0].transform.position;
         Vector3 firePointForward = weapon.firePoints[0].transform.forward;
         
@@ -175,7 +196,8 @@ public class AimingSystem : MonoBehaviour
             indicatorPos = ray.GetPoint(maxAimDistance);
         }
 
-        OnPlaceWorldCrosshair?.Invoke(gameObject, mainCamera.WorldToScreenPoint(indicatorPos), 0.01f);
+        if (!weapon.WeaponSlot.WeaponSlotAimpointObject) return;
+        OnPlaceWorldCrosshair?.Invoke(weapon.WeaponSlot.WeaponSlotAimpointObject, mainCamera.WorldToScreenPoint(indicatorPos), 0.01f);
         
         if (!debugAim) return;
         Debug.DrawRay(firePointPos, firePointForward * maxAimDistance, Color.green, 0.01f);
@@ -184,13 +206,13 @@ public class AimingSystem : MonoBehaviour
     private void AimWeapon(GameObject weaponObject, Weapon weapon, WeaponComponent weaponComponent)
     {
         GameObject localTarget = null;
-        switch (currentAimMode)
+        switch (currentAIAimTargetingMode)
         {
-            case AimMode.AimAtPoint:
+            case AIAimTargetingMode.AimAtPoint:
                 localTarget = targetAimpoint;
                 break;
             
-            case AimMode.AimAtTarget:
+            case AIAimTargetingMode.AimAtTarget:
                 localTarget = targetCharacter;
                 break;
         }
@@ -274,25 +296,31 @@ public class AimingSystem : MonoBehaviour
         // otherwise check for obstacles etc
         // some smart checks such as moving object going to obscure target before its hit, target moving out of sight (reduces chance to hit)
     }
+    
+    private void SetAimingAllowed(bool value)
+    {
+        AimingAllowed = value;
+    }
 
-    private void SetWeapon(GameObject validationObject, Weapon newWeapon, WeaponSlot weaponSlot)
+    private void RegisterWeapon(GameObject validationObject, Weapon newWeapon)
     {
         if (validationObject != gameObject) return;
-
-        foreach (GameObject weaponObject in weaponObjectsToAim)
-        {
-            if (!weaponSlot.Weapons.Contains(weaponObject)) continue;
-            weaponObjectsToAim.Remove(weaponObject);
-        }
         
         weaponObjectsToAim.Add(newWeapon.gameObject);
     }
 
-    private void SetAimMode(GameObject validationObject, AimMode newAimMode)
+    private void UnregisterWeapon(GameObject validationObject, Weapon oldWeapon)
     {
         if (validationObject != gameObject) return;
         
-        currentAimMode = newAimMode;
+        weaponObjectsToAim.Remove(oldWeapon.gameObject);
+    }
+
+    private void SetAIAimMode(GameObject validationObject, AIAimTargetingMode newAIAimTargetingMode)
+    {
+        if (validationObject != gameObject) return;
+        
+        currentAIAimTargetingMode = newAIAimTargetingMode;
     }
 
     private void SetTargetAimpoint(GameObject validationObject, GameObject newAimpoint)

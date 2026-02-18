@@ -179,8 +179,8 @@ public class WeaponComponent
     }
     
     [Separator("Unsorted Settings")]
-    public Image weaponCrosshair;
-    public Image weaponAimpoint;
+    public Image weaponCrosshairImage;
+    public Image weaponAimpointImage;
     
     [Separator("Technical Settings")]
     public float hitscanRange;
@@ -200,7 +200,7 @@ public class WeaponComponent
     public float weaponSway;
     
     [Separator("Projectile Settings")]
-    public List<GameObject> projectilePrefabs;
+    [DisplayInspector] public List<GameObject> projectilePrefabs;
     public bool passTargetToProjectile;
     
     public bool shootsMultipleProjectiles;
