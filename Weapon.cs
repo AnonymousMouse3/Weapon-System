@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using DG.Tweening;
 using MouseLib;
@@ -9,6 +10,7 @@ using UnityEngine.InputSystem;
 using UnityEngine.Serialization;
 using Random = UnityEngine.Random;
 
+// OLD INACCURATE DESCRIPTION
 // The Weapon script is the top of the weapon system "stack"
 // It contains an instance of a WeaponObject, to serve as the weapon's instance at runtime
 // It also contains values only present on the weapon's prefab (which can't be set on the WeaponObject)
@@ -27,26 +29,23 @@ public class Weapon : MonoBehaviour
     public static event Action OnWeaponShoot;
     public static event Action<Weapon> OnWeaponRelease;
     public static event Action<float> OnAttackSpeedModifierChange;
+    public static event Action<GameObject, WeaponComponent> OnSpellCast;
+    public static event Action<GameObject, WeaponComponent> OnAttemptSpellCast;
 
     [SerializeField, ReadOnly] public Tween weaponTween;
+    [SerializeField, ReadOnly] public GameObject worldAimpointInstance;
     
+    [SerializeField, ReadOnly] public GameObject target;
+    [SerializeField, ReadOnly] public GameObject currentProjectile;
     [SerializeField] public List<GameObject> firePoints;
     [SerializeField] public bool cycleFirePoints;
-    [SerializeField, ReadOnly] public GameObject currentProjectile;
     
-    public GameObject WeaponOwner 
+    [ReadOnly] public GameObject WeaponOwner 
     {
         get => weaponOwner;
         set => weaponOwner = value;
     }
     [SerializeField, ReadOnly] private GameObject weaponOwner;
-    
-    [HideInInspector] public WeaponSlot WeaponSlot 
-    {
-        get => weaponSlot;
-        set => weaponSlot = value;
-    }
-    private WeaponSlot weaponSlot;
     
     //[SerializeField] private TargetingSystem targetingSystem;
     [SerializeField, DisplayInspector] public WeaponScriptableObject weaponScriptableObject; // make property
@@ -63,10 +62,16 @@ public class Weapon : MonoBehaviour
     private WeaponComponent weaponComponent;
     
     private Task cycleTask;
+    private CancellationTokenSource cycleCTS;
     private Task reloadTask;
+    private CancellationTokenSource reloadCTS;
     private float burstCounter;
     private int firePointCounter;
     private float baseFireRate;
+    
+    #if SPELL_SYSTEM
+    [SerializeField] private SpellManager spellManager;
+    #endif
 
     private void OnEnable()
     {
@@ -105,6 +110,7 @@ public class Weapon : MonoBehaviour
         weaponComponent.currentReserveAmmo = weaponComponent.maxReserveAmmo; // change dynamically in future, obviously
         
         weaponOwner = transform.parent.transform.parent.gameObject;
+        weaponOwner.TryGetComponent(out spellManager);
 
         if (weaponComponent.projectilePrefabs.IsNullOrEmpty()) { Debug.Log("Weapon has no projectile. Assign one in the inspector."); return;}
         currentProjectile = weaponComponent.projectilePrefabs[0]; // change/remember the default during gameplay? hardcoded for now
@@ -131,7 +137,7 @@ public class Weapon : MonoBehaviour
     {
         if (!cycleTask.IsCompleted) { await cycleTask; }
         if (!reloadTask.IsCompleted) { await reloadTask; }
-
+        
         if (cycleTask.IsCompleted && reloadTask.IsCompleted)
         {
             // Prevent the loop from looping too fast
@@ -174,16 +180,16 @@ public class Weapon : MonoBehaviour
     private void TryFireWeapon()
     {
         // If the weapon is cycling between shots or reloading, it cannot fire
-        if (weaponComponent.firingState == WeaponComponent.FiringState.Cycling) { CouldNotFire(); return; }
+        if (weaponComponent.firingState == WeaponComponent.FiringState.Cycling) { CouldNotFire("weapon still cycling!"); return; }
     
-        if (weaponComponent.reloadState == WeaponComponent.ReloadState.Reloading) { CouldNotFire(); return; }
-
+        if (weaponComponent.reloadState == WeaponComponent.ReloadState.Reloading) { CouldNotFire("weapon reloading!"); return; }
+        
         if (weaponComponent.usesAmmo)
         {
             // If the weapon has a chamber, and it is not loaded, the weapon cannot fire
             if (weaponComponent.hasChamber)
             {
-                if (!weaponComponent.isChamberLoaded) { CouldNotFire(); return; }
+                if (!weaponComponent.isChamberLoaded) { CouldNotFire("chamber not loaded"); return; }
             }
 
             // If the weapon does not have a chamber, only a magazine, canister, etc. (e.g. revolvers, flamethrowers)
@@ -191,23 +197,39 @@ public class Weapon : MonoBehaviour
             // Note that it must NOT have a chamber for this to be true. If the chamber is just empty the gun needs to be racked
             else if (weaponComponent.hasMagazine && !weaponComponent.hasChamber)
             {
-                if (weaponComponent.currentMagazineAmmo <= 0) { CouldNotFire(); return; }
+                if (weaponComponent.currentMagazineAmmo <= 0) { CouldNotFire("magazine is empty - weapon has no chamber"); return; }
             }
 
             else if (weaponComponent.drawsFromReserveAmmoDirectly && !weaponComponent.hasMagazine && !weaponComponent.hasChamber)
             {
-                if (weaponComponent.currentReserveAmmo <= 0) { CouldNotFire(); return; }
+                if (weaponComponent.currentReserveAmmo <= 0) { CouldNotFire("reserve ammo empty"); return; }
             }
 
-            else if (!weaponComponent.drawsFromReserveAmmoDirectly && !weaponComponent.hasMagazine && !weaponComponent.hasChamber) { CouldNotFire(); return; }
+            else if (!weaponComponent.drawsFromReserveAmmoDirectly && !weaponComponent.hasMagazine && !weaponComponent.hasChamber)
+            {
+                CouldNotFire("weapon has no chamber, magazine, or ability to draw from reserve ammo. check weapon settings"); return;
+            }
+        }
+        
+        if (weaponComponent.requiresTarget && !target) { CouldNotFire("no target"); return; }
+
+        if (weaponComponent.isSpell)
+        {
+            // use spell manager to run mana checks, etc
+            
+            #if SPELL_SYSTEM
+            if (!spellManager.SpellChecks(weaponOwner, weaponComponent)) { CouldNotFire("one or more spell checks failed"); return; }
+            #endif
         }
         
         FireWeapon();
     }
 
-    private void CouldNotFire()
+    private void CouldNotFire(string reason)
     {
         // play empty weapon click, etc.
+        //if (weaponComponent.debugWeapon)
+        Debug.Log(reason);
     }
     
     private void FireWeapon()
@@ -241,7 +263,19 @@ public class Weapon : MonoBehaviour
         
         // weapon has shot successfully
         OnWeaponShoot?.Invoke();
-        cycleTask = CycleWeapon();
+
+        if (weaponComponent.isSpell)
+        {
+            OnSpellCast?.Invoke(gameObject, weaponComponent);
+            
+            #if SPELL_SYSTEM
+            spellManager.ConsumeSpellResources(weaponComponent);
+            #endif
+            // tell spell manager to consume mana, etc
+        }
+        
+        cycleCTS = new CancellationTokenSource();
+        cycleTask = CycleWeapon(cycleCTS.Token);
         
         // Remove ammo from the weapon (if it uses ammo)
         if (weaponComponent.usesAmmo)
@@ -348,10 +382,10 @@ public class Weapon : MonoBehaviour
                 
         if (!weaponComponent.passTargetToProjectile) return;
         weaponOwner.TryGetComponent(out PlayerAimingSystem playerAimingSystem);
-        newProjectileSystem.ChangeTrackingTarget(playerAimingSystem.LockOnTarget);
+        newProjectileSystem.ChangeTrackingTarget(target);
     }
     
-    private async Task CycleWeapon()
+    private async Task CycleWeapon(CancellationToken ct)
     {
         weaponComponent.firingState = WeaponComponent.FiringState.Cycling;
 
@@ -372,11 +406,13 @@ public class Weapon : MonoBehaviour
         
         if (weaponComponent.hasChamber && weaponComponent.isChamberLoaded) return;
         
-        reloadTask = ReloadWeapon();
+        reloadCTS = new CancellationTokenSource();
+        reloadTask = ReloadWeapon(reloadCTS.Token);
     }
     
-    private async Task ReloadWeapon()
+    private async Task ReloadWeapon(CancellationToken ct)
     {
+        // todo reload states/progressive reloading per-weapon
         weaponComponent.reloadState = WeaponComponent.ReloadState.Reloading;
         
         await MouseTools.AwaitableTimer(weaponComponent.reloadTime);

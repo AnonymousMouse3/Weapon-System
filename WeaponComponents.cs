@@ -11,7 +11,7 @@ using UnityEngine.UI;
 public class DamageComponent
 {
     public float baseDamage;
-    [ReadOnly] public List<PassiveEffectScriptableObject> passiveEffectsAppliedToTarget;
+    public List<PassiveEffectScriptableObject> passiveEffectsAppliedToTarget;
 }
 
 [Serializable]
@@ -134,119 +134,4 @@ public class SubProjectileComponent
     public bool isMagnetic;
     [ReadOnly(nameof(isMagnetic) ,true), Range(1f, 100f)]
     public float magnetAttractionFactor;
-}
-
-// The WeaponComponent class serves as the data structure/template and the base of the weapon system
-// It is designed to be cloned and saved with WeaponObjects for individual weapons' stat blocks
-// Which are further instanced by Weapon scripts for use at runtime
-[Serializable]
-public class WeaponComponent
-{
-    // ReadOnly attributes will disable editing of the variable depending on a condition
-    // We use these here to disable certain gun stats that are only relevant if another is true
-    // e.g. a gun's chamber can only be loaded if it has one
-    // Thus setting hasChamber to false will set chamberLoaded to read only
-
-    [Separator("Runtime States")] // move these to their individual sections at the top
-    [ReadOnly] public bool isTriggerPulled;
-    
-    [ReadOnly, ConditionalField(nameof(hasChamber))] public bool isChamberLoaded;
-    [ConditionalField(nameof(hasMagazine))] public int currentMagazineAmmo;
-    [ConditionalField(nameof(hasReserveAmmo))] public int currentReserveAmmo;
-    
-    [ReadOnly] public FiringState firingState;
-    public enum FiringState
-    {
-        Cycling,
-        ReadyToFire,
-    }
-    
-    public WeaponAimType currentWeaponAimType;
-    public enum WeaponAimType
-    {
-        Crosshair,
-        LockOn,
-        GroundOnly
-    }
-    
-    [ReadOnly] public ReloadState reloadState;
-    public enum ReloadState
-    {
-        DoesNotReload,
-        RequiresReload,
-        Reloading,
-        ReadyToFire,
-    }
-    
-    [Separator("Unsorted Settings")]
-    public Image weaponCrosshairImage;
-    public Image weaponAimpointImage;
-    
-    [Separator("Technical Settings")]
-    public float hitscanRange;
-    public HitscanOrProjectile hitscanOrProjectile;
-    public enum HitscanOrProjectile
-    {
-        Hitscan = 0,
-        Projectile = 1
-    }
-
-    [Separator("AI Settings")]
-    public float expectedDamage;
-    
-    [Separator("Handling Settings")]
-    public float weaponErgonomics;
-    public float weaponWeight;
-    public float weaponSway;
-    
-    [Separator("Projectile Settings")]
-    [DisplayInspector] public List<GameObject> projectilePrefabs;
-    public bool passTargetToProjectile;
-    
-    public bool shootsMultipleProjectiles;
-    [ReadOnly(nameof(shootsMultipleProjectiles), true)] public int projectilesPerShot = 1;
-
-    public float projectileSpreadAngle;
-
-    [Separator("Fire Mode Settings")]
-    [Tooltip("Rounds/min")] public float fireRate;
-    [ReadOnly, Tooltip("Time (s)")] public float fireInterval; // Set at runtime by Weapon
-    
-    public bool canSwitchFireModes;
-    public FireModes currentFireMode;
-    public FireModes availableFireModes;
-    [Flags] public enum FireModes
-    {
-        SemiAuto = 0,
-        FullAuto = 1,
-        Burst = 2,
-    }
-    
-    public int burstLength;
-    
-    [Separator("Ammo Settings")]
-    public bool usesAmmo;
-    
-    public bool consumesMultipleAmmo;
-    [ReadOnly(nameof(consumesMultipleAmmo), true)] public int ammoConsumedPerShot = 1;
-    
-    public bool hasChamber;
-    public int chamberCapacity;
-    
-    public bool hasMagazine;
-    [ReadOnly(nameof(hasMagazine), true)] public int magazineCapacity;
-    [ReadOnly(nameof(hasMagazine), true)] public bool magazineIsObject;
-    //[ReadOnly(nameof(magazineIsObject), true)] public InventoryItem magazineItem;
-    
-    public bool hasReserveAmmo;
-    [ReadOnly(nameof(hasReserveAmmo), true)] public bool drawsFromReserveAmmoDirectly;
-    [ReadOnly(nameof(hasReserveAmmo), true)] public int maxReserveAmmo;
-    [ReadOnly] public int totalAmmoInWeapon;
-    
-    [Separator("Reload Settings")]
-    public bool needsReloading;
-    [ReadOnly(nameof(needsReloading), true), Tooltip("Time (s)")] public float reloadTime;
-    [ReadOnly(nameof(needsReloading), true)] public bool reloadsRoundsIndividually;
-    [Tooltip("Determines if the weapon will be reloaded if the player attempts to use it while it's empty."), ReadOnly(nameof(needsReloading), true)]
-    public bool canQuickReload;
 }
