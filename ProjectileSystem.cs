@@ -86,6 +86,7 @@ public class ProjectileSystem : MonoBehaviour
 
     public void ApplyVelocityToProjectile()
     {
+        if (!rb) return;
         rb.AddForce(transform.forward * projectileComponent.initialVelocity, ForceMode.Impulse);
     }
 

@@ -266,7 +266,7 @@ public class Weapon : MonoBehaviour
 
         if (weaponComponent.isSpell)
         {
-            OnSpellCast?.Invoke(gameObject, weaponComponent);
+            OnSpellCast?.Invoke(weaponOwner, weaponComponent);
             
             #if SPELL_SYSTEM
             spellManager.ConsumeSpellResources(weaponComponent);

@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using MyBox;
+using Unity.VisualScripting;
+using UnityEngine.InputSystem;
 using UnityEngine.Serialization;
 using UnityEngine.UI;
 
@@ -13,6 +15,30 @@ using UnityEngine.UI;
 public class WeaponScriptableObject : ScriptableObject
 {
     public WeaponComponent weaponComponent;
+}
+
+[Serializable]
+public class WeaponAction
+{
+    [ReadOnly] public bool ActionComplete;
+    public InputActionReference InputAction;
+    public List<WeaponActionConditions> ActionConditions;
+}
+
+[Serializable]
+public class WeaponActionConditions
+{
+    public WeaponActionConditionType ConditionType;
+    [ReadOnly(nameof(ConditionType), true, WeaponActionConditionType.ActionComplete, WeaponActionConditionType.ActionIncomplete)]
+    [SerializeReference] public string ActionToMonitor; // TEMP - this will be cleaner in future, remake with UI toolkit
+    
+    public enum WeaponActionConditionType
+    {
+        ProjectileActive,
+        ChargedForTime,
+        ActionComplete,
+        ActionIncomplete,
+    }
 }
 
 // The WeaponComponent class serves as the data structure/template and the base of the weapon system
@@ -67,6 +93,7 @@ public class WeaponComponent
     public GameObject weaponLockOnIcon;
     
     [Separator("Technical Settings")]
+    public List<WeaponAction> WeaponActions;
     public float hitscanRange;
     public HitscanOrProjectile hitscanOrProjectile;
     public enum HitscanOrProjectile
@@ -132,7 +159,7 @@ public class WeaponComponent
     public bool needsReloading;
     [ReadOnly(nameof(needsReloading), true), Tooltip("Time (s)")] public float reloadTime;
     [ReadOnly(nameof(needsReloading), true)] public bool reloadsRoundsIndividually;
-    [Tooltip("Determines if the weapon will be reloaded if the player attempts to use it while it's empty."), ReadOnly(nameof(needsReloading), true)]
+    [Tooltip("Determines if the weapon will be reloaded if the player attempts to shoot while empty."), ReadOnly(nameof(needsReloading), true)]
     public bool canQuickReload;
 
     [Separator("Project-Specific Settings")] 
