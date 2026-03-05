@@ -2,4 +2,5 @@
     <uie:PropertyField binding-path="Name" />
     <uie:PropertyField binding-path="ActionComplete" label="Complete" />
     <uie:ObjectField label="Object Field" type="UnityEngine.InputSystem.InputActionReference, Unity.InputSystem" />
+    <ui:ListView binding-path="ActionConditions" show-add-remove-footer="true" show-bound-collection-size="false" virtualization-method="DynamicHeight" reorderable="true" show-border="true" horizontal-scrolling="false" reorder-mode="Animated" />
 </ui:UXML>
