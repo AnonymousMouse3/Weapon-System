@@ -173,10 +173,10 @@ public class WeaponPart
 }
 
 [Serializable]
-public class WeaponAction : ScriptableObject
+public class WeaponAction
 {
-    public string Name;
     [ReadOnly] public bool ActionComplete;
+    public string Name;
     public InputActionReference InputActionListenedTo;
     public List<WeaponActionConditions> ActionConditions;
     public List<WeaponActionsToTake> ActionsToTake;
@@ -195,8 +195,12 @@ public class WeaponActionConditions
 {
     [ReadOnly] public bool Fulfilled;
     public WeaponActionConditionType ConditionType;
-    [ReadOnly(nameof(ConditionType), true, WeaponActionConditionType.ActionComplete, WeaponActionConditionType.ActionIncomplete)]
-    [SerializeReference] public string ActionToMonitor; // TEMP - this will be cleaner in future, remake with UI toolkit
+    [ConditionalField(nameof(ConditionType), false, WeaponActionConditionType.ActionComplete, WeaponActionConditionType.ActionIncomplete)]
+    public string ActionToMonitor; // TEMP - this will be cleaner in future, remake with UI toolkit
+    [ConditionalField(nameof(ConditionType), false, WeaponActionConditionType.ProjectileActive)]
+    public GameObject Projectile;
+    [ConditionalField(nameof(ConditionType), false, WeaponActionConditionType.ChargedForTime)]
+    public float ChargeTime;
     
     public enum WeaponActionConditionType
     {
