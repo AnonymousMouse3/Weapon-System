@@ -1,6 +1,5 @@
 <ui:UXML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" noNamespaceSchemaLocation="../../../../UIElementsSchema/UIElements.xsd" editor-extension-mode="True">
-    <uie:PropertyField binding-path="Name" />
-    <uie:PropertyField binding-path="ActionComplete" label="Complete" />
-    <uie:ObjectField label="Object Field" type="UnityEngine.InputSystem.InputActionReference, Unity.InputSystem" />
-    <ui:ListView binding-path="ActionConditions" show-add-remove-footer="true" show-bound-collection-size="false" virtualization-method="DynamicHeight" reorderable="true" show-border="true" horizontal-scrolling="false" reorder-mode="Animated" />
+    <ui:Label text="Label" />
+    <uie:ObjectField type="WeaponAction, Assembly-CSharp" />
+    <ui:ListView binding-path="ActionConditions" show-add-remove-footer="true" show-bound-collection-size="false" virtualization-method="DynamicHeight" reorderable="true" show-border="true" horizontal-scrolling="false" reorder-mode="Animated" show-foldout-header="false" show-alternating-row-backgrounds="All" item-template="project://database/Assets/Scripts/Weapon-System/UXML/WeaponActionConditionsVisualTree.uxml?fileID=9197481963319205126&amp;guid=2dbf214ccb7a2784a804ab2714b0515b&amp;type=3#WeaponActionConditionsVisualTree" name="ListView" enabled="true" />
 </ui:UXML>

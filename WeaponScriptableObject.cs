@@ -173,7 +173,7 @@ public class WeaponPart
 }
 
 [Serializable]
-public class WeaponAction
+public class WeaponAction : ScriptableObject
 {
     public string Name;
     [ReadOnly] public bool ActionComplete;
@@ -229,7 +229,7 @@ public class WeaponComponent
     public GameObject weaponLockOnIcon;
     
     [Separator("Technical Settings")]
-    public List<WeaponAction> WeaponActions;
+    [SerializeReference] List<WeaponAction> WeaponActions;
     
     [Separator("Handling Settings")]
     public float weaponErgonomics;
