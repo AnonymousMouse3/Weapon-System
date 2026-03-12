@@ -1,0 +1,11 @@
+<ui:UXML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" noNamespaceSchemaLocation="../../../../UIElementsSchema/UIElements.xsd" editor-extension-mode="True">
+    <ui:VisualElement style="flex-grow: 1;">
+        <ui:Label text="Weapon Actions&#10;" />
+        <ui:TabView>
+            <ui:Tab label="Tab">
+                <ui:ListView binding-path="WeaponActions" virtualization-method="DynamicHeight" show-foldout-header="false" horizontal-scrolling="false" reorderable="true" selection-type="Multiple" show-add-remove-footer="true" reorder-mode="Animated" show-border="true" focusable="true" usage-hints="None" picking-mode="Ignore" show-bound-collection-size="false" item-template="project://database/Assets/Scripts/Weapon-System/UXML/WeaponActionsVisualTree.uxml?fileID=9197481963319205126&amp;guid=36044727c230f7a43bf67f5b977297c0&amp;type=3#WeaponActionsVisualTree" data-source-type="WeaponAction, Assembly-CSharp" name="ListView" show-alternating-row-backgrounds="All" allow-add="true" allow-remove="true" />
+            </ui:Tab>
+            <ui:Tab label="Tab" />
+        </ui:TabView>
+    </ui:VisualElement>
+</ui:UXML>

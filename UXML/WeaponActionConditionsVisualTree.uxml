@@ -1,0 +1,8 @@
+<ui:UXML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" noNamespaceSchemaLocation="../../../../UIElementsSchema/UIElements.xsd" editor-extension-mode="True">
+    <ui:Label text="Action Condition&#10;" style="font-size: 12px; -unity-text-align: upper-center; padding-bottom: 2px; padding-top: 2px;" />
+    <uie:PropertyField binding-path="Fulfilled" label="Fulfilled" style="-unity-text-align: upper-left; top: auto; left: auto; right: auto;" />
+    <uie:PropertyField binding-path="ConditionType" />
+    <uie:PropertyField binding-path="ActionToMonitor" />
+    <uie:PropertyField binding-path="Projectile" />
+    <uie:PropertyField binding-path="ChargeTime" />
+</ui:UXML>
