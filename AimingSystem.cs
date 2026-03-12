@@ -220,6 +220,8 @@ public class AimingSystem : MonoBehaviour
                 localTarget = targetCharacter;
                 break;
         }
+
+        Debug.Log("guh");
         
         if (!localTarget) return;
         if (weapon.weaponTween == null)
@@ -342,12 +344,12 @@ public class AimingSystem : MonoBehaviour
     private void SetTargetAimpoint(GameObject validationObject, GameObject newAimpoint)
     {
         if (validationObject != gameObject) return;
-        targetAimpoint  = newAimpoint;
+        targetAimpoint = newAimpoint;
     }
     
     private void SetTargetCharacter(GameObject validationObject, GameObject newCharacter)
     {
         if (validationObject != gameObject) return;
-        targetCharacter  = newCharacter;
+        targetCharacter = newCharacter;
     }
 }
