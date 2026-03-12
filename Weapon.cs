@@ -381,7 +381,7 @@ public class Weapon : MonoBehaviour
         //newProjectileSystem.SetProjectileTeam(LayerMask.LayerToName(weaponOwner.gameObject.layer));
                 
         if (!weaponComponent.passTargetToProjectile) return;
-        weaponOwner.TryGetComponent(out PlayerAimingSystem playerAimingSystem);
+        weaponOwner.TryGetComponent(out AimingSystem playerAimingSystem);
         newProjectileSystem.ChangeTrackingTarget(target);
     }
     

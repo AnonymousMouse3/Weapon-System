@@ -9,7 +9,7 @@ using UnityEngine;
 using UnityEngine.Serialization;
 using UnityEngine.TextCore.Text;
 
-public class PlayerAimingSystem : MonoBehaviour
+public class AimingSystem : MonoBehaviour
 {
     public delegate void OnSetAIAimTargetingMode(GameObject validationObject, AIAimTargetingMode newAIAimTargetingMode);
     public static OnSetAIAimTargetingMode onSetAIAimTargetingMode;
