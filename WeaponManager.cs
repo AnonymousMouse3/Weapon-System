@@ -21,6 +21,7 @@ public class WeaponSlot
     [ReadOnly] public bool SlotOnCooldown;
     [ReadOnly] public bool SwappingWeapon;
     public List<Weapon> WeaponPrefabs;
+    public int MaxWeaponsInSlot;
     public GameObject WeaponSlotObject;
     public InputActionReference Action;
     public WeaponComponent.WeaponAimType WeaponSlotCurrentAimType;
@@ -40,9 +41,9 @@ public class WeaponManager : MonoBehaviour
     public static OnReplaceTargetWeapon onReplaceTargetWeapon;
     public delegate void OnReplaceWeaponInSlot(GameObject validationObject, string weaponSlotName, Weapon replacement, int index);
     public static OnReplaceWeaponInSlot onReplaceWeaponInSlot;
-    public delegate void OnSwapWeapons(GameObject validationObject, string weaponSlotName, float weaponIndex);
+    public delegate void OnSwapWeapons(GameObject validationObject, string weaponSlotName, int weaponIndex);
     public static OnSwapWeapons onSwapWeapons;
-    public delegate void OnCycleWeapons(GameObject validationObject, string weaponSlotName, float weaponIndex);
+    public delegate void OnCycleWeapons(GameObject validationObject, string weaponSlotName, int direction);
     public static OnCycleWeapons onCycleWeapons;
     public delegate void OnSwitchAmmoType(GameObject validationObject, GameObject newAmmoType, int weaponSlotIndex);
     public static OnSwitchAmmoType onSwitchAmmoType;
@@ -171,7 +172,7 @@ public class WeaponManager : MonoBehaviour
         }
     }
 
-    private async void BeginWeaponSwap(GameObject validationObject, string weaponSlotName, float weaponIndex)
+    private async void BeginWeaponSwap(GameObject validationObject, string weaponSlotName, int weaponIndex)
     {
         if (validationObject != gameObject) return;
         // Select the weapon slot of interest
@@ -184,7 +185,7 @@ public class WeaponManager : MonoBehaviour
         weaponSwapTask = SwapWeapons(weaponSlot.WeaponSlotSwapCTS.Token, validationObject, weaponSlot, weaponIndex);
     }
     
-    private void BeginWeaponCycle(GameObject validationObject, string weaponSlotName, float direction)
+    private void BeginWeaponCycle(GameObject validationObject, string weaponSlotName, int direction)
     {
         if (validationObject != gameObject) return;
         // Select the weapon slot of interest
@@ -230,10 +231,11 @@ public class WeaponManager : MonoBehaviour
         weaponSwapTask = SwapWeapons(weaponSlot.WeaponSlotSwapCTS.Token, validationObject, weaponSlot, weaponIndex);
     }
 
-    private async Task SwapWeapons(CancellationToken ct, GameObject validationObject, WeaponSlot weaponSlot, float weaponIndex)
+    private async Task SwapWeapons(CancellationToken ct, GameObject validationObject, WeaponSlot weaponSlot, int weaponIndex)
     {
         if (validationObject != gameObject) return;
         if (weaponSlot == null) return;
+        if (!weaponSlot.WeaponPrefabs[weaponIndex]) return;
         float oldWeaponUnequipTime = 0;
         
         // Get the old weapon and unregister it from the aiming system
@@ -333,6 +335,8 @@ public class WeaponManager : MonoBehaviour
     {
         if (validationObject != gameObject) return;
         WeaponSlot weaponSlot = FindWeaponSlotByName(weaponSlotName);
+        
+        if (weaponSlot.WeaponPrefabs.Count >= weaponSlot.MaxWeaponsInSlot) return;
         
         if (index != -1)
         {

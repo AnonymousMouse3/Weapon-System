@@ -82,6 +82,11 @@ public class ProjectileComponent
     [ReadOnly(nameof(createsLiquid), true)] public Liquid liquidType;
     #endif
 
+    #if SPELL_SYSTEM
+    [Separator("Spell Settings")]
+    public bool disableManasteal;
+    #endif
+    
     [Separator("Magnetism Settings")]
     public bool isMagnetic;
     [ReadOnly(nameof(isMagnetic) ,true), Range(1f, 100f)]

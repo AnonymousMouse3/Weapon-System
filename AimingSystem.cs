@@ -221,8 +221,6 @@ public class AimingSystem : MonoBehaviour
                 break;
         }
 
-        Debug.Log("guh");
-        
         if (!localTarget) return;
         if (weapon.weaponTween == null)
         {
