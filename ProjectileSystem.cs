@@ -12,7 +12,7 @@ using Debug = UnityEngine.Debug;
 public class ProjectileSystem : MonoBehaviour
 {
     public static event Action<GameObject, float, float, Vector3> OnImpact;
-    public static event Action<GameObject, ProjectileComponent> OnHit; // this projectile, damage
+    public static event Action<GameObject, GameObject, ProjectileComponent> OnHit; // this projectile, target hit, damage
     
     [FormerlySerializedAs("lingeringEffectsOnDestroy")] [SerializeField] public List<GameObject> dontDestroyLingeringEffects;
     [SerializeField] public Rigidbody rb;
@@ -226,7 +226,7 @@ public class ProjectileSystem : MonoBehaviour
             if (other.gameObject.layer != LayerMask.NameToLayer(projectileComponent.projectileTeam.ToString()))
             {
                 healthSystem.DoDamage(projectileComponent.damageComponent.baseDamage);
-                OnHit?.Invoke(projectileOwner, projectileComponent);
+                OnHit?.Invoke(projectileOwner, other.gameObject, projectileComponent);
                 ApplyPassiveEffectsToTarget(other.gameObject);
 
                 if (weaponFiredFrom) // spells don't have a weapon they're fired from
