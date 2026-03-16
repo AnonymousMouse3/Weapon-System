@@ -10,8 +10,36 @@ using UnityEngine.UI;
 [Serializable]
 public class DamageComponent
 {
+    [Separator("Main Settings")]
     public float baseDamage;
     public List<PassiveEffectScriptableObject> passiveEffectsAppliedToTarget;
+    
+    [Separator("Explosion Settings")]
+    [SerializeField] public bool isExplosive;
+    [SerializeField] public float explosionRadius;
+    [SerializeField] public bool scaleDamageWithDistance;
+    
+    [SerializeField] public bool destroySelf;
+    [SerializeField] public float explosionDelay;
+    [SerializeField] public LayerMask layersToHit;
+    [SerializeField] public int maxTargetsChecked;
+    
+    [Separator("Armour Penetration")]
+    [SerializeField] public int explosionArmourPenetration;
+    
+    [Separator("Status Effect Settings")]
+    public bool appliesDamageOverTime;
+    [ReadOnly(nameof(appliesDamageOverTime), true)] public float damagePerTick;
+    [ReadOnly(nameof(appliesDamageOverTime), true), Min(0.1f)] public float damageTickDuration;
+    
+    #if SPELL_SYSTEM
+    [Separator("Spell Settings")]
+    public bool enableManasteal;
+    public float manastealMultiplier = 1;
+    
+    public bool enableLifesteal;
+    public float lifestealMultiplier = 1;
+    #endif
 }
 
 [Serializable]
@@ -80,11 +108,6 @@ public class ProjectileComponent
     public bool createsLiquid;
     [ReadOnly(nameof(createsLiquid), true)] public int radius;
     [ReadOnly(nameof(createsLiquid), true)] public Liquid liquidType;
-    #endif
-
-    #if SPELL_SYSTEM
-    [Separator("Spell Settings")]
-    public bool disableManasteal;
     #endif
     
     [Separator("Magnetism Settings")]

@@ -1,3 +1,4 @@
+/*
 using UnityEditor;
 using UnityEngine;
 using UnityEditor.UIElements;
@@ -18,3 +19,4 @@ public class WeaponEditor : Editor
         return root;
     }
 }
+*/

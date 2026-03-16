@@ -5,28 +5,14 @@ using UnityEngine;
 
 public class Explosion : MonoBehaviour
 {
-    [Separator("Size")]
-    [SerializeField] private float explosionRadius;
-    
-    [Separator("Damage")]
-    [SerializeField] private float explosionDamage;
-    [SerializeField] private bool scaleDamageWithDistance;
-    
-    [Separator("Armour Penetration")]
-    [SerializeField] private int explosionArmourPenetration;
-    
-    [Separator("Settings")]
-    [SerializeField] private bool destroySelf;
-    [SerializeField] private float explosionDelay;
-    [SerializeField] private LayerMask layersToHit;
-    [SerializeField] private int maxTargetsChecked;
+    [SerializeField] private DamageComponent damageComponent;
     
     private Task explosionTask = Task.CompletedTask;
     
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
-        explosionTask = Explode(explosionDelay);
+        explosionTask = Explode(damageComponent.explosionDelay);
     }
 
     private async Task Explode(float delay)
@@ -34,7 +20,7 @@ public class Explosion : MonoBehaviour
         await MouseTools.AwaitableTimer(delay);
         
         Collider[] hitTargets = new Collider[10];
-        Physics.OverlapSphereNonAlloc(transform.position, explosionRadius, hitTargets);
+        Physics.OverlapSphereNonAlloc(transform.position, damageComponent.explosionRadius, hitTargets);
 
         foreach (Collider collider in hitTargets)
         {
@@ -43,10 +29,10 @@ public class Explosion : MonoBehaviour
             collider.gameObject.TryGetComponent(out HealthSystem healthSystem);
             if (!healthSystem) continue;
             
-            healthSystem.DoDamage(explosionDamage);
+            healthSystem.DoDamage(damageComponent);
         }
 
-        if (!destroySelf) return;
+        if (!damageComponent.destroySelf) return;
         
         // Preserve trails, projectiles, sound emitters, etc.
         // The effects themselves are under an empty GameObject named "Effects" which is unparented from the projectile

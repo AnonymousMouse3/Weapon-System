@@ -225,7 +225,7 @@ public class ProjectileSystem : MonoBehaviour
             // Friendly fire check
             if (other.gameObject.layer != LayerMask.NameToLayer(projectileComponent.projectileTeam.ToString()))
             {
-                healthSystem.DoDamage(projectileComponent.damageComponent.baseDamage);
+                healthSystem.DoDamage(projectileComponent.damageComponent);
                 OnHit?.Invoke(projectileOwner, other.gameObject, projectileComponent);
                 ApplyPassiveEffectsToTarget(other.gameObject);
 

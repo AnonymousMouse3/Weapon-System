@@ -1,4 +1,4 @@
-using UnityEditor;
+/*using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -14,4 +14,4 @@ public class WeaponActionsPropertyDrawer : PropertyDrawer
         
         return root;
     }
-}
+}*/
