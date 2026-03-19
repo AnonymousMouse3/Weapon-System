@@ -1,12 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using UnityEngine;
 using MyBox;
-using Unity.VisualScripting;
 using UnityEngine.InputSystem;
 using UnityEngine.Serialization;
-using UnityEngine.UI;
-
 
 [Serializable, CreateAssetMenu(fileName = "WeaponScriptableObject", menuName = "Weapon Scriptable Object")]
 // A WeaponObject is a ScriptableObject containing a WeaponComponent (the data structure)
@@ -37,117 +36,24 @@ public class WeaponScriptableObject : ScriptableObject
     public float weaponSway;
     public float weaponEquipTime;
     public float weaponUnequipTime;
-
+    
     public List<WeaponPart> WeaponParts;
-        
-    public WeaponComponent weaponComponent;
     
-}
-
-[Serializable]
-public class WeaponPart
-{
-    [Separator("Runtime States")] // move these to their individual sections at the top
-    [ReadOnly] public bool isTriggerPulled;
-    
-    [ReadOnly, ConditionalField(nameof(hasChamber))] public bool isChamberLoaded;
-    [ConditionalField(nameof(hasMagazine))] public int currentMagazineAmmo;
-    [ConditionalField(nameof(hasReserveAmmo))] public int currentReserveAmmo;
-    
-    
-    
-    [ReadOnly] public WeaponComponent.FiringState firingState;
-    [ReadOnly] public WeaponComponent.ReloadState reloadState;
-    [ReadOnly] public WeaponComponent.WeaponAimType currentWeaponAimType;
-    
-    
-    
-    [Separator("Projectile Settings")]
-    public HitscanOrProjectile hitscanOrProjectile;
-    public enum HitscanOrProjectile
+    public WeaponAimType aimType;
+    public enum WeaponAimType
     {
-        Projectile,
-        Hitscan
-    }
-    public float hitscanRange;
-    
-    [DisplayInspector] public List<GameObject> projectilePrefabs;
-    [FormerlySerializedAs("weaponRequiresTarget")] public bool requiresTarget;
-    public bool passTargetToProjectile;
-    public bool updateTargetContinuously;
-    
-    public bool shootsMultipleProjectiles;
-    [ReadOnly(nameof(shootsMultipleProjectiles), true)] public int projectilesPerShot = 1;
-
-    public float projectileSpreadAngle;
-
-    [Separator("Fire Mode Settings")]
-    [Tooltip("Rounds/min")] public float fireRate;
-    [ReadOnly, Tooltip("Time (s)")] public float fireInterval; // Set at runtime by Weapon
-    
-    public bool canSwitchFireModes;
-    public FireModes currentFireMode;
-    public FireModes availableFireModes;
-    public enum FireModes
-    {
-        SemiAuto = 0,
-        FullAuto = 1,
-        Burst = 2,
+        Crosshair,
+        LockOn,
+        GroundOnly
     }
     
-    public int burstLength;
-    
-    [Separator("Ammo Settings")]
-    public bool usesAmmo;
-    
-    public bool consumesMultipleAmmo;
-    [ReadOnly(nameof(consumesMultipleAmmo), true)] public int ammoConsumedPerShot = 1;
-    
-    public bool hasChamber;
-    public int chamberCapacity;
-    
-    public bool hasMagazine;
-    [ReadOnly(nameof(hasMagazine), true)] public int magazineCapacity;
-    [ReadOnly(nameof(hasMagazine), true)] public bool magazineIsObject;
-    //[ReadOnly(nameof(magazineIsObject), true)] public InventoryItem magazineItem;
-    
-    public bool hasReserveAmmo;
-    [ReadOnly(nameof(hasReserveAmmo), true)] public bool drawsFromReserveAmmoDirectly;
-    [ReadOnly(nameof(hasReserveAmmo), true)] public int maxReserveAmmo;
-    [ReadOnly] public int totalAmmoInWeapon;
-    
-    [Separator("Reload Settings")]
-    public bool needsReloading;
-    [ReadOnly(nameof(needsReloading), true), Tooltip("Time (s)")] public float reloadTime;
-    [ReadOnly(nameof(needsReloading), true)] public bool reloadsRoundsIndividually;
-    [Tooltip("Determines if the weapon will be reloaded if the player attempts to shoot while empty."), ReadOnly(nameof(needsReloading), true)]
-    public bool canQuickReload;
-
-    [Separator("Project-Specific Settings")] 
-    public bool dummyBool;
-    
-    [Separator("Advanced AI Settings")]
-    public float expectedDamage;
+    #if SPELL_SYSTEM
+    public Texture2D spellIcon;
+    public Texture[] spellImages;
     
     [Separator("Spell Settings")]
-    public bool isSpell;
-    
-    public int manaCost;
-    public int healthCost;
-    
-    [Tooltip("How long until the spell can be re-used")] public float spellCooldownTime;
-    [Tooltip("How long the spell prevents any spell from being cast")] public float slotCooldownTime;
-
-    public SpellType spellType;
     public SpellSchool spellSchool;
-    public enum SpellType
-    {
-        Static,
-        Projectile,
-        AoE,
-        Uncastable,
-    }
-
+    
     public enum SpellSchool
     {
         None,
@@ -160,17 +66,13 @@ public class WeaponPart
         Aero
     }
     
-    public Texture2D spellIcon;
-    public Texture[] spellImages;
-    
     [ConditionalField(nameof(spellSchool), false, SpellSchool.Pyromancy)] public int embersCost;
     [ConditionalField(nameof(spellSchool), false, SpellSchool.Ferromancy)] public int swordCost;
     [ConditionalField(nameof(spellSchool), false, SpellSchool.Lunar)] public int astralAmmoCost;
     [ConditionalField(nameof(spellSchool), false, SpellSchool.Hydromancy)] public int waterLevelCost;
-    
-    public List<PassiveEffectScriptableObject> passiveEffectsAppliedToTarget;
-    public List<PassiveEffectScriptableObject> passiveEffectsAppliedToCaster;
+    #endif
 }
+
 
 [Serializable]
 public class WeaponAction
@@ -178,41 +80,44 @@ public class WeaponAction
     [ReadOnly] public bool ActionComplete;
     public string Name;
     public InputActionReference InputActionListenedTo;
-    public List<WeaponActionConditions> ActionConditions;
+    public List<WeaponActionCondition> ActionConditions;
     public List<WeaponActionsToTake> ActionsToTake;
-    public WeaponPart weaponPart;
+    [SerializeReference] public WeaponPart weaponPart;
     
     public enum WeaponActionsToTake
     {
         ShootWeaponPart
     }
-    
-    
 }
 
 [Serializable]
-public class WeaponActionConditions
+public class WeaponActionCondition
 {
     [ReadOnly] public bool Fulfilled;
     public WeaponActionConditionType ConditionType;
-    [ConditionalField(nameof(ConditionType), false, WeaponActionConditionType.ActionComplete, WeaponActionConditionType.ActionIncomplete)]
-    public string ActionToMonitor; // TEMP - this will be cleaner in future, remake with UI toolkit
-    [ConditionalField(nameof(ConditionType), false, WeaponActionConditionType.ProjectileActive)]
-    public GameObject Projectile;
+
+    [ConditionalField(nameof(ConditionType), false, WeaponActionConditionType.ActionComplete,
+        WeaponActionConditionType.ActionIncomplete)]
+    public WeaponAction ActionToMonitor; // TEMP - this will be cleaner in future, remake with UI toolkit
+
+    [ConditionalField(nameof(ConditionType), false, WeaponActionConditionType.AnyProjectileActive)]
+    public WeaponPart weaponPart;
+
     [ConditionalField(nameof(ConditionType), false, WeaponActionConditionType.ChargedForTime)]
     public float ChargeTime;
-    
+
     public enum WeaponActionConditionType
     {
         Nothing,
-        ProjectileActive,
+        AnyProjectileActive,
         ChargedForTime,
         ActionComplete,
         ActionIncomplete,
     }
 }
 
-// The WeaponComponent class serves as the data structure/template and the base of the weapon system
+
+/*// The WeaponComponent class serves as the data structure/template and the base of the weapon system
 // It is designed to be cloned and saved with WeaponObjects for individual weapons' stat blocks
 // Which are further instanced by Weapon scripts for use at runtime
 [Serializable]
@@ -226,15 +131,15 @@ public class WeaponComponent
     public string name;
     [TextArea] public string desc;
     [TextArea] public string altDesc;
-    
+
     [Separator("Unsorted Settings")]
     public GameObject weaponCrosshairImage;
     public GameObject weaponAimpointIcon;
     public GameObject weaponLockOnIcon;
-    
+
     [Separator("Technical Settings")]
     [SerializeReference] List<WeaponAction> WeaponActions;
-    
+
     [Separator("Handling Settings")]
     public float weaponErgonomics;
     public float weaponWeight;
@@ -243,23 +148,23 @@ public class WeaponComponent
     public float weaponUnequipTime;
 
     public List<WeaponPart> WeaponParts;
-    
+
     [Separator("Runtime States")] // move these to their individual sections at the top
     [ReadOnly] public bool isTriggerPulled;
-    
+
     [ReadOnly, ConditionalField(nameof(hasChamber))] public bool isChamberLoaded;
     [ConditionalField(nameof(hasMagazine))] public int currentMagazineAmmo;
     [ConditionalField(nameof(hasReserveAmmo))] public int currentReserveAmmo;
-    
-    
-    
+
+
+
     [ReadOnly] public FiringState firingState;
     public enum FiringState
     {
         Cycling,
         ReadyToFire,
     }
-    
+
     public WeaponAimType currentWeaponAimType;
     public enum WeaponAimType
     {
@@ -267,7 +172,7 @@ public class WeaponComponent
         LockOn,
         GroundOnly
     }
-    
+
     [ReadOnly] public ReloadState reloadState;
     public enum ReloadState
     {
@@ -276,8 +181,8 @@ public class WeaponComponent
         Reloading,
         ReadyToFire,
     }
-    
-    
+
+
     [Separator("Projectile Settings")]
     public HitscanOrProjectile hitscanOrProjectile;
     public enum HitscanOrProjectile
@@ -286,12 +191,12 @@ public class WeaponComponent
         Projectile = 1
     }
     public float hitscanRange;
-    
+
     [DisplayInspector] public List<GameObject> projectilePrefabs;
     [FormerlySerializedAs("weaponRequiresTarget")] public bool requiresTarget;
     public bool passTargetToProjectile;
     public bool updateTargetContinuously;
-    
+
     public bool shootsMultipleProjectiles;
     [ReadOnly(nameof(shootsMultipleProjectiles), true)] public int projectilesPerShot = 1;
 
@@ -300,7 +205,7 @@ public class WeaponComponent
     [Separator("Fire Mode Settings")]
     [Tooltip("Rounds/min")] public float fireRate;
     [ReadOnly, Tooltip("Time (s)")] public float fireInterval; // Set at runtime by Weapon
-    
+
     public bool canSwitchFireModes;
     public FireModes currentFireMode;
     public FireModes availableFireModes;
@@ -310,28 +215,28 @@ public class WeaponComponent
         FullAuto = 1,
         Burst = 2,
     }
-    
+
     public int burstLength;
-    
+
     [Separator("Ammo Settings")]
     public bool usesAmmo;
-    
+
     public bool consumesMultipleAmmo;
     [ReadOnly(nameof(consumesMultipleAmmo), true)] public int ammoConsumedPerShot = 1;
-    
+
     public bool hasChamber;
     public int chamberCapacity;
-    
+
     public bool hasMagazine;
     [ReadOnly(nameof(hasMagazine), true)] public int magazineCapacity;
     [ReadOnly(nameof(hasMagazine), true)] public bool magazineIsObject;
     //[ReadOnly(nameof(magazineIsObject), true)] public InventoryItem magazineItem;
-    
+
     public bool hasReserveAmmo;
     [ReadOnly(nameof(hasReserveAmmo), true)] public bool drawsFromReserveAmmoDirectly;
     [ReadOnly(nameof(hasReserveAmmo), true)] public int maxReserveAmmo;
     [ReadOnly] public int totalAmmoInWeapon;
-    
+
     [Separator("Reload Settings")]
     public bool needsReloading;
     [ReadOnly(nameof(needsReloading), true), Tooltip("Time (s)")] public float reloadTime;
@@ -339,18 +244,18 @@ public class WeaponComponent
     [Tooltip("Determines if the weapon will be reloaded if the player attempts to shoot while empty."), ReadOnly(nameof(needsReloading), true)]
     public bool canQuickReload;
 
-    [Separator("Project-Specific Settings")] 
+    [Separator("Project-Specific Settings")]
     public bool dummyBool;
-    
+
     [Separator("Advanced AI Settings")]
     public float expectedDamage;
-    
+
     [Separator("Spell Settings")]
     public bool isSpell;
-    
+
     public int manaCost;
     public int healthCost;
-    
+
     [Tooltip("How long until the spell can be re-used")] public float spellCooldownTime;
     [Tooltip("How long the spell prevents any spell from being cast")] public float slotCooldownTime;
 
@@ -375,15 +280,15 @@ public class WeaponComponent
         Hydromancy,
         Aero
     }
-    
+
     public Texture2D spellIcon;
     public Texture[] spellImages;
-    
+
     [ConditionalField(nameof(spellSchool), false, SpellSchool.Pyromancy)] public int embersCost;
     [ConditionalField(nameof(spellSchool), false, SpellSchool.Ferromancy)] public int swordCost;
     [ConditionalField(nameof(spellSchool), false, SpellSchool.Lunar)] public int astralAmmoCost;
     [ConditionalField(nameof(spellSchool), false, SpellSchool.Hydromancy)] public int waterLevelCost;
-    
+
     public List<PassiveEffectScriptableObject> passiveEffectsAppliedToTarget;
     public List<PassiveEffectScriptableObject> passiveEffectsAppliedToCaster;
-}
+}*/

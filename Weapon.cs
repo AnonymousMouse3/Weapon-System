@@ -7,8 +7,6 @@ using MouseLib;
 using MyBox;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.Serialization;
-using Random = UnityEngine.Random;
 
 // OLD INACCURATE DESCRIPTION
 // The Weapon script is the top of the weapon system "stack"
@@ -21,16 +19,17 @@ using Random = UnityEngine.Random;
 // Then create a new WeaponScriptableObject, fill out the weapon's stats, and also add it to the Weapon script
 // Then, just hook up inputs to the PullTrigger and ReleaseTrigger methods to use the weapon. do the same for reload, etc
 // todo rewrite this because inputs are now handled through weaponmanager to allow for multiple weapons etc
+[Serializable]
 public class Weapon : MonoBehaviour
 {
-    public delegate void OnReloadWeapon(GameObject validationObject);
+    public delegate void OnReloadWeapon(WeaponPart weaponPart, GameObject validationObject);
     public static OnReloadWeapon onReloadWeapon;
     
     public static event Action OnWeaponShoot;
     public static event Action<Weapon> OnWeaponRelease;
-    public static event Action<float> OnAttackSpeedModifierChange;
-    public static event Action<GameObject, WeaponComponent> OnSpellCast;
-    public static event Action<GameObject, WeaponComponent> OnAttemptSpellCast;
+    public static event Action<WeaponPart, float> OnAttackSpeedModifierChange;
+    public static event Action<GameObject, WeaponPart> OnSpellCast;
+    public static event Action<GameObject, WeaponPart> OnAttemptSpellCast;
 
     [SerializeField, ReadOnly] public Tween weaponTween;
     [SerializeField, ReadOnly] public GameObject worldAimpointInstance;
@@ -47,27 +46,12 @@ public class Weapon : MonoBehaviour
     }
     [SerializeField, ReadOnly] private GameObject weaponOwner;
     
-    //[SerializeField] private TargetingSystem targetingSystem;
-    [SerializeField, DisplayInspector] public WeaponScriptableObject weaponScriptableObject; // make property
-    
-    public float AttackSpeedModifier { get => attackSpeedModifier; private set { attackSpeedModifier = value; OnAttackSpeedModifierChange?.Invoke(attackSpeedModifier); } }
-    [SerializeField] private float attackSpeedModifier;
-    [SerializeField] private float damageModifier;
-
-    public WeaponComponent WeaponComponent
+    public WeaponScriptableObject WeaponScriptableObject
     {
-        get => weaponComponent;
-        set => weaponComponent  = value;
+        get => weaponScriptableObject;
+        set => weaponScriptableObject  = value;
     }
-    private WeaponComponent weaponComponent;
-    
-    private Task cycleTask;
-    private CancellationTokenSource cycleCTS;
-    private Task reloadTask;
-    private CancellationTokenSource reloadCTS;
-    private float burstCounter;
-    private int firePointCounter;
-    private float baseFireRate;
+    [SerializeField, DisplayInspector] public WeaponScriptableObject weaponScriptableObject;
     
     #if SPELL_SYSTEM
     [SerializeField] private SpellManager spellManager;
@@ -91,138 +75,220 @@ public class Weapon : MonoBehaviour
     {
         // Create an instance of the WeaponObject so we don't affect the base stats
         WeaponScriptableObject newWeaponScriptableObject = Instantiate(weaponScriptableObject);
-        
         weaponScriptableObject = newWeaponScriptableObject;
-        weaponComponent = weaponScriptableObject.weaponComponent;
 
-        cycleTask = Task.CompletedTask;
-        reloadTask = Task.CompletedTask;
-        
-        //replace with an actual check on start
-        weaponComponent.firingState = WeaponComponent.FiringState.ReadyToFire;
-        weaponComponent.reloadState = WeaponComponent.ReloadState.ReadyToFire;
-        weaponComponent.fireInterval = 60 / weaponComponent.fireRate;
-
-        baseFireRate = weaponComponent.fireInterval;
-
-        weaponComponent.isChamberLoaded = true; // change dynamically
-        weaponComponent.currentMagazineAmmo = weaponComponent.magazineCapacity;
-        weaponComponent.currentReserveAmmo = weaponComponent.maxReserveAmmo; // change dynamically in future, obviously
-        
         weaponOwner = transform.parent.transform.parent.gameObject;
         weaponOwner.TryGetComponent(out spellManager);
 
-        if (weaponComponent.projectilePrefabs.IsNullOrEmpty()) { Debug.Log("Weapon has no projectile. Assign one in the inspector."); return;}
-        currentProjectile = weaponComponent.projectilePrefabs[0]; // change/remember the default during gameplay? hardcoded for now
+        foreach (WeaponPart weaponPart in weaponScriptableObject.WeaponParts)
+        {
+            weaponPart.parentWeaponScriptableObject = weaponScriptableObject;
+            
+            //replace with an actual check on start
+            weaponPart.firingState = WeaponPart.FiringState.ReadyToFire;
+            weaponPart.reloadState = WeaponPart.ReloadState.ReadyToFire;
+            weaponPart.fireInterval = 60 / weaponPart.fireRate;
+
+            weaponPart.baseFireRate = weaponPart.fireInterval;
+
+            weaponPart.isChamberLoaded = true; // change dynamically
+            weaponPart.currentMagazineAmmo = weaponPart.magazineCapacity;
+            weaponPart.currentReserveAmmo = weaponPart.maxReserveAmmo; // change dynamically in future, obviously
+
+            if (weaponPart.projectilePrefabs.IsNullOrEmpty()) { Debug.Log("Weapon part has no projectile. Assign one in the inspector."); return;}
+            currentProjectile = weaponPart.projectilePrefabs[0]; // change/remember the default during gameplay? hardcoded for now
+        }
     }
 
-    public void PullTrigger(GameObject validationObject)
+    public void ProcessWeaponAction(GameObject validationObject, InputAction action, bool pressOrRelease)
     {
         if (validationObject != weaponOwner) return;
+
+        WeaponPart currentWeaponPart = null;
+        WeaponAction currentWeaponAction = null;
+
+        foreach (WeaponAction weaponAction in weaponScriptableObject.WeaponActions)
+        {
+            if (weaponAction.InputActionListenedTo.action != action) continue;
+            
+            currentWeaponPart = CheckWeaponActionConditions(weaponAction);
+        }
         
-        weaponComponent.isTriggerPulled = true;
+        if (!currentWeaponPart) return;
         
-        TryFireWeaponLoop();
+        if (pressOrRelease)
+        {
+            currentWeaponPart.isTriggerPulled = true;
+            TryFireWeaponLoop(currentWeaponPart);
+            // set weapon action to completed
+        }
+        else
+        {
+            currentWeaponPart.isTriggerPulled = false;
+            OnWeaponRelease?.Invoke(this);
+        }
     }
 
     public void ReleaseTrigger(GameObject validationObject)
     {
         if (validationObject != weaponOwner) return;
         
-        weaponComponent.isTriggerPulled = false;
-        OnWeaponRelease?.Invoke(this);
+        foreach (WeaponPart weaponPart in weaponScriptableObject.WeaponParts)
+        {
+            weaponPart.isTriggerPulled = false;
+            OnWeaponRelease?.Invoke(this);
+        }
     }
 
-    private async void TryFireWeaponLoop()
+    private WeaponPart CheckWeaponActionConditions(WeaponAction weaponAction)
     {
-        if (!cycleTask.IsCompleted) { await cycleTask; }
-        if (!reloadTask.IsCompleted) { await reloadTask; }
+        foreach (WeaponActionCondition actionCondition in weaponAction.ActionConditions)
+        {
+            switch (actionCondition.ConditionType)
+            {
+                case WeaponActionCondition.WeaponActionConditionType.Nothing:
+                    return weaponAction.weaponPart;
+                
+                case WeaponActionCondition.WeaponActionConditionType.AnyProjectileActive:
+                    if (!AnyProjectileActiveCheck(weaponAction)) return null;
+                    
+                    return weaponAction.weaponPart;
+                
+                case WeaponActionCondition.WeaponActionConditionType.ChargedForTime:
+                    
+                    break;
+                
+                case WeaponActionCondition.WeaponActionConditionType.ActionComplete:
+                    if (!ActionCompleteCheck(actionCondition)) return null;
+                    
+                    return weaponAction.weaponPart;
+                
+                case WeaponActionCondition.WeaponActionConditionType.ActionIncomplete:
+                    if(ActionIncompleteCheck(actionCondition)) return null;
+                    
+                    return weaponAction.weaponPart;
+            }
+        }
+
+        return null;
+    }
+
+    private bool AnyProjectileActiveCheck(WeaponAction weaponAction)
+    {
+        if (weaponAction.weaponPart.projectilePrefabs.IsNullOrEmpty()) return false;
         
-        if (cycleTask.IsCompleted && reloadTask.IsCompleted)
+        return true;
+    }
+
+    private void ChargeTimeCheck()
+    {
+        
+    }
+
+    private bool ActionCompleteCheck(WeaponActionCondition actionCondition)
+    {
+        if (actionCondition.ActionToMonitor.ActionComplete) return true;
+        
+        return false;
+    }
+    
+    private bool ActionIncompleteCheck(WeaponActionCondition actionCondition)
+    {
+        if (!actionCondition.ActionToMonitor.ActionComplete) return true;
+        
+        return false;
+    }
+
+    private async void TryFireWeaponLoop(WeaponPart weaponPart)
+    {
+        if (!weaponPart.cycleTask.IsCompleted) { await weaponPart.cycleTask; }
+        if (!weaponPart.reloadTask.IsCompleted) { await weaponPart.reloadTask; }
+        
+        if (weaponPart.cycleTask.IsCompleted && weaponPart.reloadTask.IsCompleted)
         {
             // Prevent the loop from looping too fast
             await MouseTools.AwaitableTimer(0.001f);
         }
 
-        if (!weaponComponent.isTriggerPulled)
+        if (!weaponPart.isTriggerPulled)
         {
-            burstCounter = 0;
+            weaponPart.burstCounter = 0;
             return;
         }
-        switch (weaponComponent.currentFireMode)
+        switch (weaponPart.currentFireMode)
         {
-            case WeaponComponent.FireModes.SemiAuto:
-                TryFireWeapon();
+            case WeaponPart.FireModes.SemiAuto:
+                TryFireWeapon(weaponPart);
                 break;
             
-            case WeaponComponent.FireModes.Burst:
-                TryFireWeapon();
-                burstCounter++;
+            case WeaponPart.FireModes.Burst:
+                TryFireWeapon(weaponPart);
+                weaponPart.burstCounter++;
 
-                if (burstCounter < weaponComponent.burstLength)
+                if (weaponPart.burstCounter < weaponPart.burstLength)
                 {
-                    TryFireWeaponLoop();
+                    TryFireWeaponLoop(weaponPart);
                     return;
                 }
                 
-                burstCounter = 0;
+                weaponPart.burstCounter = 0;
                 
                 break;
             
-            case WeaponComponent.FireModes.FullAuto:
-                TryFireWeapon();
+            case WeaponPart.FireModes.FullAuto:
+                TryFireWeapon(weaponPart);
                 
-                TryFireWeaponLoop();
+                TryFireWeaponLoop(weaponPart);
                 break;
         }
     }
     
-    private void TryFireWeapon()
+    private void TryFireWeapon(WeaponPart weaponPart)
     {
         // If the weapon is cycling between shots or reloading, it cannot fire
-        if (weaponComponent.firingState == WeaponComponent.FiringState.Cycling) { CouldNotFire("weapon still cycling!"); return; }
+        if (weaponPart.firingState == WeaponPart.FiringState.Cycling) { CouldNotFire("weapon still cycling!"); return; }
     
-        if (weaponComponent.reloadState == WeaponComponent.ReloadState.Reloading) { CouldNotFire("weapon reloading!"); return; }
+        if (weaponPart.reloadState == WeaponPart.ReloadState.Reloading) { CouldNotFire("weapon reloading!"); return; }
         
-        if (weaponComponent.usesAmmo)
+        if (weaponPart.usesAmmo)
         {
             // If the weapon has a chamber, and it is not loaded, the weapon cannot fire
-            if (weaponComponent.hasChamber)
+            if (weaponPart.hasChamber)
             {
-                if (!weaponComponent.isChamberLoaded) { CouldNotFire("chamber not loaded"); return; }
+                if (!weaponPart.isChamberLoaded) { CouldNotFire("chamber not loaded"); return; }
             }
 
             // If the weapon does not have a chamber, only a magazine, canister, etc. (e.g. revolvers, flamethrowers)
             // Then the weapon cannot fire if it is empty
             // Note that it must NOT have a chamber for this to be true. If the chamber is just empty the gun needs to be racked
-            else if (weaponComponent.hasMagazine && !weaponComponent.hasChamber)
+            else if (weaponPart.hasMagazine && !weaponPart.hasChamber)
             {
-                if (weaponComponent.currentMagazineAmmo <= 0) { CouldNotFire("magazine is empty - weapon has no chamber"); return; }
+                if (weaponPart.currentMagazineAmmo <= 0) { CouldNotFire("magazine is empty - weapon has no chamber"); return; }
             }
 
-            else if (weaponComponent.drawsFromReserveAmmoDirectly && !weaponComponent.hasMagazine && !weaponComponent.hasChamber)
+            else if (weaponPart.drawsFromReserveAmmoDirectly && !weaponPart.hasMagazine && !weaponPart.hasChamber)
             {
-                if (weaponComponent.currentReserveAmmo <= 0) { CouldNotFire("reserve ammo empty"); return; }
+                if (weaponPart.currentReserveAmmo <= 0) { CouldNotFire("reserve ammo empty"); return; }
             }
 
-            else if (!weaponComponent.drawsFromReserveAmmoDirectly && !weaponComponent.hasMagazine && !weaponComponent.hasChamber)
+            else if (!weaponPart.drawsFromReserveAmmoDirectly && !weaponPart.hasMagazine && !weaponPart.hasChamber)
             {
                 CouldNotFire("weapon has no chamber, magazine, or ability to draw from reserve ammo. check weapon settings"); return;
             }
         }
         
-        if (weaponComponent.requiresTarget && !target) { CouldNotFire("no target"); return; }
+        if (weaponPart.requiresTarget && !target) { CouldNotFire("no target"); return; }
 
-        if (weaponComponent.isSpell)
+        if (weaponPart.isSpell)
         {
             // use spell manager to run mana checks, etc
             
             #if SPELL_SYSTEM
-            if (!spellManager.SpellChecks(weaponOwner, weaponComponent)) { CouldNotFire("one or more spell checks failed"); return; }
+            if (!spellManager.SpellChecks(weaponOwner, weaponPart)) { CouldNotFire("one or more spell checks failed"); return; }
             #endif
         }
         
-        FireWeapon();
+        FireWeapon(weaponPart);
     }
 
     private void CouldNotFire(string reason)
@@ -232,90 +298,90 @@ public class Weapon : MonoBehaviour
         Debug.Log(reason);
     }
     
-    private void FireWeapon()
+    private void FireWeapon(WeaponPart weaponPart)
     {
         if (firePoints.IsNullOrEmpty()) return;
-        Transform selectedFirePoint = firePoints[firePointCounter].transform;
+        Transform selectedFirePoint = firePoints[weaponPart.firePointCounter].transform;
 
-        if (cycleFirePoints) firePointCounter++;
-        if (firePointCounter >= firePoints.Count) firePointCounter = 0;
+        if (cycleFirePoints) weaponPart.firePointCounter++;
+        if (weaponPart.firePointCounter >= firePoints.Count) weaponPart.firePointCounter = 0;
         
-        switch (weaponComponent.hitscanOrProjectile)
+        switch (weaponPart.hitscanOrProjectile)
         {
-            case WeaponComponent.HitscanOrProjectile.Hitscan:
+            case WeaponPart.HitscanOrProjectile.Hitscan:
                 CastHitscan();
                 break;
             
-            case WeaponComponent.HitscanOrProjectile.Projectile:
-                if (weaponComponent.shootsMultipleProjectiles)
+            case WeaponPart.HitscanOrProjectile.Projectile:
+                if (weaponPart.shootsMultipleProjectiles)
                 {
-                    for (int i = 0; i < weaponComponent.projectilesPerShot; i++)
+                    for (int i = 0; i < weaponPart.projectilesPerShot; i++)
                     {
-                        SpawnProjectile(currentProjectile, selectedFirePoint);
+                        SpawnProjectile(weaponPart, weaponPart.currentProjectile, selectedFirePoint);
                     }
 
                     break;
                 }
                 
-                SpawnProjectile(currentProjectile, selectedFirePoint);
+                SpawnProjectile(weaponPart, weaponPart.currentProjectile, selectedFirePoint);
                 break;
         }
         
         // weapon has shot successfully
         OnWeaponShoot?.Invoke();
 
-        if (weaponComponent.isSpell)
+        if (weaponPart.isSpell)
         {
-            OnSpellCast?.Invoke(weaponOwner, weaponComponent);
+            OnSpellCast?.Invoke(weaponOwner, weaponPart);
             
             #if SPELL_SYSTEM
-            spellManager.ConsumeSpellResources(weaponComponent);
+            spellManager.ConsumeSpellResources(weaponPart);
             #endif
             // tell spell manager to consume mana, etc
         }
         
-        cycleCTS = new CancellationTokenSource();
-        cycleTask = CycleWeapon(cycleCTS.Token);
+        weaponPart.cycleCTS = new CancellationTokenSource();
+        weaponPart.cycleTask = CycleWeapon(weaponPart, weaponPart.cycleCTS.Token);
         
         // Remove ammo from the weapon (if it uses ammo)
-        if (weaponComponent.usesAmmo)
+        if (weaponPart.usesAmmo)
         {
             // If this weapon has a chamber, and either does not have a magazine, or that magazine is empty, empty the chamber
-            if (weaponComponent.hasChamber && (weaponComponent.currentMagazineAmmo <= 0 || !weaponComponent.hasMagazine))
+            if (weaponPart.hasChamber && (weaponPart.currentMagazineAmmo <= 0 || !weaponPart.hasMagazine))
             {
-                weaponComponent.isChamberLoaded = false;
+                weaponPart.isChamberLoaded = false;
 
-                weaponComponent.reloadState = WeaponComponent.ReloadState.RequiresReload;
+                weaponPart.reloadState = WeaponPart.ReloadState.RequiresReload;
                 
                 return;
             }
             
             // If the weapon has a magazine, subtract the amount of ammo consumed
-            if (weaponComponent.hasMagazine)
+            if (weaponPart.hasMagazine)
             {
-                if (weaponComponent.currentMagazineAmmo > 0)
+                if (weaponPart.currentMagazineAmmo > 0)
                 {
-                    weaponComponent.currentMagazineAmmo -= weaponComponent.ammoConsumedPerShot;
+                    weaponPart.currentMagazineAmmo -= weaponPart.ammoConsumedPerShot;
                 }
 
-                if (weaponComponent.currentMagazineAmmo <= 0 && !weaponComponent.hasChamber)
+                if (weaponPart.currentMagazineAmmo <= 0 && !weaponPart.hasChamber)
                 {
-                    weaponComponent.reloadState = WeaponComponent.ReloadState.RequiresReload;
+                    weaponPart.reloadState = WeaponPart.ReloadState.RequiresReload;
                 }
 
-                if (weaponComponent.currentMagazineAmmo <= 0 && weaponComponent.hasChamber && !weaponComponent.isChamberLoaded)
+                if (weaponPart.currentMagazineAmmo <= 0 && weaponPart.hasChamber && !weaponPart.isChamberLoaded)
                 {
-                    weaponComponent.reloadState = WeaponComponent.ReloadState.RequiresReload;
+                    weaponPart.reloadState = WeaponPart.ReloadState.RequiresReload;
                 }
 
                 // Clamp magazine ammo just in case
-                weaponComponent.currentMagazineAmmo = Mathf.Clamp(weaponComponent.currentMagazineAmmo, 0, weaponComponent.magazineCapacity);
+                weaponPart.currentMagazineAmmo = Mathf.Clamp(weaponPart.currentMagazineAmmo, 0, weaponPart.magazineCapacity);
                 return;
             }
 
-            if (weaponComponent.drawsFromReserveAmmoDirectly && !weaponComponent.hasMagazine && !weaponComponent.hasChamber)
+            if (weaponPart.drawsFromReserveAmmoDirectly && !weaponPart.hasMagazine && !weaponPart.hasChamber)
             {
-                weaponComponent.currentReserveAmmo -= weaponComponent.ammoConsumedPerShot;
+                weaponPart.currentReserveAmmo -= weaponPart.ammoConsumedPerShot;
                 return;
             }
             
@@ -346,10 +412,10 @@ public class Weapon : MonoBehaviour
         //hit.collider.gameObject.GetComponent<HealthSystem>().DoDamage(selectedWeapon.damageTable);*/
     }
 
-    private void SpawnProjectile(GameObject projectileToSpawn, Transform selectedFirePoint)
+    private void SpawnProjectile(WeaponPart weaponPart, GameObject projectileToSpawn, Transform selectedFirePoint)
     {
-        float randomSpreadAngleX = Random.Range(-weaponComponent.projectileSpreadAngle, weaponComponent.projectileSpreadAngle);
-        float randomSpreadAngleY = Random.Range(-weaponComponent.projectileSpreadAngle, weaponComponent.projectileSpreadAngle);
+        float randomSpreadAngleX = UnityEngine.Random.Range(-weaponPart.projectileSpreadAngle, weaponPart.projectileSpreadAngle);
+        float randomSpreadAngleY = UnityEngine.Random.Range(-weaponPart.projectileSpreadAngle, weaponPart.projectileSpreadAngle);
         Vector3 spreadVector = new Vector3(randomSpreadAngleX, randomSpreadAngleY, 0);
         Quaternion projectileAngleWithSpread = selectedFirePoint.transform.rotation * Quaternion.Euler(spreadVector);
         
@@ -364,9 +430,11 @@ public class Weapon : MonoBehaviour
         
         if (!newProjectileSystem) return;
 
+        newProjectileSystem.weaponPartFiredFrom = weaponPart;
+        newProjectileSystem.weaponPartFiredFrom.spawnedProjectiles.Add(newProjectile);
         newProjectileSystem.weaponFiredFrom = this;
         newProjectileSystem.projectileOwner = weaponOwner;
-        newProjectileSystem.projectileComponent.damageComponent.baseDamage = newProjectileSystem.projectileComponent.damageComponent.baseDamage * (1 + damageModifier);
+        newProjectileSystem.projectileComponent.damageComponent.baseDamage *= 1 + weaponPart.damageModifier;
         
         if (newProjectileSystem.TryGetComponent(out Rigidbody projectileRB))
         {
@@ -380,67 +448,75 @@ public class Weapon : MonoBehaviour
         
         //newProjectileSystem.SetProjectileTeam(LayerMask.LayerToName(weaponOwner.gameObject.layer));
                 
-        if (!weaponComponent.passTargetToProjectile) return;
+        if (!weaponPart.passTargetToProjectile) return;
         weaponOwner.TryGetComponent(out AimingSystem playerAimingSystem);
         newProjectileSystem.ChangeTrackingTarget(target);
     }
     
-    private async Task CycleWeapon(CancellationToken ct)
+    private void SwitchAmmoType(GameObject validationObject, WeaponPart weaponPart, GameObject newAmmoType)
     {
-        weaponComponent.firingState = WeaponComponent.FiringState.Cycling;
-
-        await MouseTools.AwaitableTimer(weaponComponent.fireInterval);
-
-        weaponComponent.firingState = WeaponComponent.FiringState.ReadyToFire;
-    }
-
-    private void StartReload(GameObject validationObject)
-    {
-        if (validationObject != weaponOwner) return;
-        if (!weaponComponent.needsReloading) return;
-
-        if (weaponComponent.hasMagazine)
-        {
-            if (weaponComponent.currentMagazineAmmo == weaponComponent.magazineCapacity) return; // add other checks for other weapons types
-        }
+        if (validationObject != gameObject) return;
         
-        if (weaponComponent.hasChamber && weaponComponent.isChamberLoaded) return;
-        
-        reloadCTS = new CancellationTokenSource();
-        reloadTask = ReloadWeapon(reloadCTS.Token);
+        if (!weaponPart.projectilePrefabs.Contains(newAmmoType)) return;
+        weaponPart.currentProjectile = newAmmoType;
     }
     
-    private async Task ReloadWeapon(CancellationToken ct)
+    private async Task CycleWeapon(WeaponPart weaponPart, CancellationToken ct)
+    {
+        weaponPart.firingState = WeaponPart.FiringState.Cycling;
+
+        await MouseTools.AwaitableTimer(weaponPart.fireInterval);
+
+        weaponPart.firingState = WeaponPart.FiringState.ReadyToFire;
+    }
+
+    private void StartReload(WeaponPart weaponPart, GameObject validationObject)
+    {
+        if (validationObject != weaponOwner) return;
+        if (!weaponPart.needsReloading) return;
+
+        if (weaponPart.hasMagazine)
+        {
+            if (weaponPart.currentMagazineAmmo == weaponPart.magazineCapacity) return; // add other checks for other weapons types
+        }
+        
+        if (weaponPart.hasChamber && weaponPart.isChamberLoaded) return;
+        
+        weaponPart.reloadCTS = new CancellationTokenSource();
+        weaponPart.reloadTask = ReloadWeapon(weaponPart, weaponPart.reloadCTS.Token);
+    }
+    
+    private async Task ReloadWeapon(WeaponPart weaponPart, CancellationToken ct)
     {
         // todo reload states/progressive reloading per-weapon
-        weaponComponent.reloadState = WeaponComponent.ReloadState.Reloading;
+        weaponPart.reloadState = WeaponPart.ReloadState.Reloading;
         
-        await MouseTools.AwaitableTimer(weaponComponent.reloadTime);
+        await MouseTools.AwaitableTimer(weaponPart.reloadTime);
         
-        if (weaponComponent.reloadsRoundsIndividually)
+        if (weaponPart.reloadsRoundsIndividually)
         {
             return;
         }
         
-        if (weaponComponent.hasMagazine)
+        if (weaponPart.hasMagazine)
         {
             // This is the helldivers style of reloading, the entire magazine is dropped and the spare ammo is lost
-            weaponComponent.currentReserveAmmo -= weaponComponent.magazineCapacity;
-            weaponComponent.currentMagazineAmmo = weaponComponent.magazineCapacity;
+            weaponPart.currentReserveAmmo -= weaponPart.magazineCapacity;
+            weaponPart.currentMagazineAmmo = weaponPart.magazineCapacity;
         }
 
-        if (weaponComponent.hasChamber && !weaponComponent.isChamberLoaded)
+        if (weaponPart.hasChamber && !weaponPart.isChamberLoaded)
         {
-            if (weaponComponent.hasMagazine)
+            if (weaponPart.hasMagazine)
             {
-                weaponComponent.currentMagazineAmmo -= weaponComponent.chamberCapacity;
+                weaponPart.currentMagazineAmmo -= weaponPart.chamberCapacity;
             }
 
             
-            weaponComponent.isChamberLoaded = true;
+            weaponPart.isChamberLoaded = true;
         }
         
-        weaponComponent.reloadState = WeaponComponent.ReloadState.ReadyToFire;
+        weaponPart.reloadState = WeaponPart.ReloadState.ReadyToFire;
     }
     
     /*private void RackWeapon()
@@ -466,27 +542,27 @@ public class Weapon : MonoBehaviour
         //On hit checks will go in here and allow subscribing to a on hit event
     }
 
-    public void ModifyAttackSpeed(float mod)
+    public void ModifyAttackSpeed(WeaponPart weaponPart, float mod)
     {
-        attackSpeedModifier = mod;
-        OnAttackSpeedModifierChange?.Invoke(mod);
+        weaponPart.attackSpeedModifier = mod;
+        OnAttackSpeedModifierChange?.Invoke(weaponPart, mod);
     }
 
-    public void OnFireRateChange(float a)
+    public void OnFireRateChange(WeaponPart weaponPart, float a)
     {
-        if (weaponComponent == null) return;
-        weaponComponent.fireInterval = baseFireRate / (1 + attackSpeedModifier); 
+        if (!weaponScriptableObject) return;
+        weaponPart.fireInterval = weaponPart.baseFireRate / (1 + weaponPart.attackSpeedModifier); 
         //Debug.Log(weaponComponent.fireInterval + " | " + attackSpeedModifier);
     }
 
-    public void ModifyDamage(float mod)
+    public void ModifyDamage(WeaponPart weaponPart, float mod)
     {
-        damageModifier = mod;
+        weaponPart.damageModifier = mod;
     }
 
-    public void ResetModifiers()
+    public void ResetModifiers(WeaponPart weaponPart)
     {
-        damageModifier = 0;
-        attackSpeedModifier = 0;
+        weaponPart.damageModifier = 0;
+        weaponPart.attackSpeedModifier = 0;
     }
 }
