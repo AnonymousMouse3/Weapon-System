@@ -1,16 +1,13 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using DG.Tweening;
-using JetBrains.Annotations;
 using MouseLib;
 using MyBox;
 using Spellslinger.UI;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.Serialization;
 
 [Serializable]
 public class WeaponSlot
@@ -23,8 +20,7 @@ public class WeaponSlot
     public List<Weapon> WeaponPrefabs;
     public int MaxWeaponsInSlot;
     public GameObject WeaponSlotObject;
-    public InputActionReference Action;
-    public WeaponComponent.WeaponAimType WeaponSlotCurrentAimType;
+    public WeaponScriptableObject.WeaponAimType WeaponSlotCurrentAimType;
     public bool AimWithAimingSystem;
     public CancellationTokenSource WeaponSlotSwapCTS;
 }
@@ -56,7 +52,7 @@ public class WeaponManager : MonoBehaviour
     public static event Action<GameObject, GameObject> OnUnregisterWeaponAiming;
     public static event Action<bool> OnSetAimingAllowed;
     public static event Action<Weapon> OnCleanupTargetLocks;
-    public static event Action<WeaponComponent> OnCurrentSpellChange;
+    public static event Action<WeaponScriptableObject> OnCurrentSpellChange;
     public List<WeaponSlot> WeaponSlots
     {
         get => weaponSlots;
@@ -83,7 +79,6 @@ public class WeaponManager : MonoBehaviour
         onReplaceTargetWeapon += ReplaceTargetWeapon;
         onSwapWeapons += BeginWeaponSwap;
         onCycleWeapons += BeginWeaponCycle;
-        onSwitchAmmoType += SwitchAmmoType;
         onBeginGlobalCooldown += BeginGlobalCooldown;
         onBeginWeaponSlotGlobalCooldown += BeginWeaponSlotGlobalCooldown;
     }
@@ -97,7 +92,6 @@ public class WeaponManager : MonoBehaviour
         onReplaceTargetWeapon -= ReplaceTargetWeapon;
         onSwapWeapons -= BeginWeaponSwap;
         onCycleWeapons -= BeginWeaponCycle;
-        onSwitchAmmoType -= SwitchAmmoType;
         onBeginGlobalCooldown -= BeginGlobalCooldown;
         onBeginWeaponSlotGlobalCooldown -= BeginWeaponSlotGlobalCooldown;
     }
@@ -128,11 +122,11 @@ public class WeaponManager : MonoBehaviour
         weapon.transform.SetAsFirstSibling();
         weaponSlot.CurrentWeapon = weapon;
         weaponSlot.CurrentWeaponPrefab = weaponPrefab;
-        weaponSlot.WeaponSlotCurrentAimType = weaponSlot.CurrentWeapon.weaponScriptableObject.weaponComponent.currentWeaponAimType;
+        weaponSlot.WeaponSlotCurrentAimType = weaponSlot.CurrentWeapon.weaponScriptableObject.aimType;
         
-        if (weapon.weaponScriptableObject.weaponComponent.weaponAimpointIcon)
+        if (weapon.weaponScriptableObject.weaponAimpointIcon)
         {
-            weapon.worldAimpointInstance = Instantiate(weapon.weaponScriptableObject.weaponComponent.weaponAimpointIcon);
+            weapon.worldAimpointInstance = Instantiate(weapon.weaponScriptableObject.weaponAimpointIcon);
         }
             
         if (!weaponSlot.AimWithAimingSystem) return;
@@ -142,8 +136,8 @@ public class WeaponManager : MonoBehaviour
     }
 
     // feed inputs to the weapon and feed only the right type of input (press or release, etc)
-    // do NOT weapon condition checks here (ammo checks, mana checks), these go in Weapon
-    private void HandleWeaponInputs(GameObject validationObject, bool pressOrRelease, InputAction action = null)
+    // do NOT perform weapon condition checks here (ammo checks, mana checks), these go in Weapon
+    private void HandleWeaponInputs(GameObject validationObject, bool pressOrRelease, InputAction action)
     {
         if (validationObject != gameObject) return;
         
@@ -151,24 +145,15 @@ public class WeaponManager : MonoBehaviour
         {
             if (weaponSlot.WeaponPrefabs.IsNullOrEmpty()) continue;
             
-            if (weaponSlot.Action)
+            /*if (weaponSlot.Action)
             {
                 if (weaponSlot.Action.ToInputAction() != action) continue;
-            }
+            }*/
 
-            switch (pressOrRelease)
-            {
-                case true:
-                    if (weaponSlot.SwappingWeapon) return;
-                    if (weaponSlot.SlotOnCooldown) return;
+            if (weaponSlot.SwappingWeapon) return;
+            if (weaponSlot.SlotOnCooldown) return;
                     
-                    weaponSlot.CurrentWeapon.PullTrigger(gameObject);
-                    break;
-                
-                case false:
-                    weaponSlot.CurrentWeapon.ReleaseTrigger(gameObject);
-                    break;
-            }
+            weaponSlot.CurrentWeapon.ProcessWeaponAction(gameObject, action, pressOrRelease);
         }
     }
 
@@ -264,33 +249,22 @@ public class WeaponManager : MonoBehaviour
             OnCleanupTargetLocks?.Invoke(oldWeapon);
             // remove all target
 
-            oldWeaponUnequipTime = oldWeapon.weaponScriptableObject.weaponComponent.weaponUnequipTime;
+            oldWeaponUnequipTime = oldWeapon.weaponScriptableObject.weaponUnequipTime;
         }
         
         SetupAndInstantiateWeapon(weaponSlot, weaponSlot.WeaponPrefabs[(int)weaponIndex]);
         
         if (weaponSlot.name == "Spells")
         {
-            OnCurrentSpellChange?.Invoke(weaponSlot.CurrentWeapon.weaponScriptableObject.weaponComponent);
+            OnCurrentSpellChange?.Invoke(weaponSlot.CurrentWeapon.weaponScriptableObject);
         }
         
         // Allow aiming and shooting again after a delay
-        await MouseTools.AwaitableTimer(oldWeaponUnequipTime + weaponSlot.CurrentWeapon.weaponScriptableObject.weaponComponent.weaponEquipTime);
+        await MouseTools.AwaitableTimer(oldWeaponUnequipTime + weaponSlot.CurrentWeapon.weaponScriptableObject.weaponEquipTime);
         if (ct.IsCancellationRequested) return;
         
         weaponSlot.SwappingWeapon = false;
         OnSetAimingAllowed?.Invoke(true);
-    }
-
-    private void SwitchAmmoType(GameObject validationObject, GameObject newAmmoType, int weaponSlotIndex)
-    {
-        if (!this) return;
-        if (validationObject != gameObject) return;
-        
-        WeaponSlot weaponSlot = weaponSlots[weaponSlotIndex];
-        
-        if (!weaponSlot.CurrentWeapon.weaponScriptableObject.weaponComponent.projectilePrefabs.Contains(newAmmoType)) return;
-        weaponSlot.CurrentWeapon.currentProjectile = newAmmoType;
     }
     
     private void BeginGlobalCooldown(GameObject validationObject, float cooldown)
@@ -373,7 +347,7 @@ public class WeaponManager : MonoBehaviour
         // for now, this removes the first matching weapon - unsure if this works
         foreach (Weapon weapon in weaponSlot.WeaponPrefabs)
         {
-            if (weapon.weaponScriptableObject.weaponComponent.name != targetWeapon.weaponScriptableObject.weaponComponent.name) continue;
+            if (weapon.weaponScriptableObject.name != targetWeapon.weaponScriptableObject.name) continue;
             weaponToRemove = weapon;
         }
         

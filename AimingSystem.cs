@@ -13,7 +13,7 @@ public class AimingSystem : MonoBehaviour
 {
     public delegate void OnSetAIAimTargetingMode(GameObject validationObject, AIAimTargetingMode newAIAimTargetingMode);
     public static OnSetAIAimTargetingMode onSetAIAimTargetingMode;
-    public delegate void OnSetAimType(GameObject validationObject, WeaponComponent.WeaponAimType newAimType);
+    public delegate void OnSetAimType(GameObject validationObject, WeaponScriptableObject.WeaponAimType newAimType);
     public static OnSetAimType onSetAimType;
     public delegate void OnSetTargetAimpoint(GameObject validationObject, GameObject newTargetAimpoint);
     public static OnSetTargetAimpoint onSetTargetAimpoint;
@@ -123,7 +123,7 @@ public class AimingSystem : MonoBehaviour
             if (!weaponObject) return;
             
             weaponObject.TryGetComponent(out Weapon weapon);
-            WeaponComponent weaponComponent = weapon.weaponScriptableObject.weaponComponent;
+            WeaponScriptableObject weaponComponent = weapon.weaponScriptableObject;
             
             if (!weapon) return;
             if (weaponComponent == null) return;
@@ -135,17 +135,17 @@ public class AimingSystem : MonoBehaviour
             
             PlaceWorldAimpoint(weaponObject, weapon, weaponComponent);
             
-            switch (weaponComponent.currentWeaponAimType)
+            switch (weaponComponent.aimType)
             {
-                case WeaponComponent.WeaponAimType.Crosshair:
+                case WeaponScriptableObject.WeaponAimType.Crosshair:
                     break;
             
-                case WeaponComponent.WeaponAimType.LockOn:
+                case WeaponScriptableObject.WeaponAimType.LockOn:
                     FindTargetsInAimCone();
                     LockOnCrosshairClosestTarget(weapon);
                     break;
             
-                case WeaponComponent.WeaponAimType.GroundOnly:
+                case WeaponScriptableObject.WeaponAimType.GroundOnly:
                     break;
             }
         }
@@ -175,7 +175,7 @@ public class AimingSystem : MonoBehaviour
         Debug.DrawRay(mainCamera.transform.position, mainCamera.transform.forward * maxAimDistance, Color.blue, 0.01f);
     }
 
-    private void PlaceWorldAimpoint(GameObject weaponObject, Weapon weapon, WeaponComponent weaponComponent)
+    private void PlaceWorldAimpoint(GameObject weaponObject, Weapon weapon, WeaponScriptableObject weaponComponent)
     {
         // consider multiple firepoints
         if (weapon.firePoints.IsNullOrEmpty())
@@ -207,7 +207,7 @@ public class AimingSystem : MonoBehaviour
         Debug.DrawRay(firePointPos, firePointForward * maxAimDistance, Color.green, 0.01f);
     }
     
-    private void AimWeapon(GameObject weaponObject, Weapon weapon, WeaponComponent weaponComponent)
+    private void AimWeapon(GameObject weaponObject, Weapon weapon, WeaponScriptableObject weaponComponent)
     {
         GameObject localTarget = null;
         switch (currentAIAimTargetingMode)
@@ -280,11 +280,11 @@ public class AimingSystem : MonoBehaviour
         
         if (weapon.target == previousTarget) return;
 
-        TargetableObject.onDisableCanvas?.Invoke(gameObject, previousTarget, weapon.weaponScriptableObject.weaponComponent.weaponLockOnIcon);
+        TargetableObject.onDisableCanvas?.Invoke(gameObject, previousTarget, weapon.weaponScriptableObject.weaponLockOnIcon);
         OnTargetLost?.Invoke(gameObject, previousTarget);
         
         if (!weapon.target) return;
-        TargetableObject.onEnableCanvas?.Invoke(gameObject, weapon.target.gameObject, weapon.weaponScriptableObject.weaponComponent.weaponLockOnIcon);
+        TargetableObject.onEnableCanvas?.Invoke(gameObject, weapon.target.gameObject, weapon.weaponScriptableObject.weaponLockOnIcon);
         OnTargetLock?.Invoke(gameObject, weapon.target.gameObject);
     }
 
@@ -292,7 +292,7 @@ public class AimingSystem : MonoBehaviour
     {
         GameObject previousTarget = weapon.target;
         
-        TargetableObject.onDisableCanvas?.Invoke(gameObject, previousTarget, weapon.weaponScriptableObject.weaponComponent.weaponLockOnIcon);
+        TargetableObject.onDisableCanvas?.Invoke(gameObject, previousTarget, weapon.weaponScriptableObject.weaponLockOnIcon);
         OnTargetLost?.Invoke(gameObject, previousTarget);
     }
     

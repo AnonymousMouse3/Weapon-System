@@ -21,6 +21,7 @@ public class ProjectileSystem : MonoBehaviour
     
     [SerializeField] public GameObject projectileOwner; // the character who owns the projectile
     [SerializeField] public Weapon weaponFiredFrom; // the weapon that fired it
+    [SerializeField] public WeaponPart weaponPartFiredFrom; // the weaponpart that fired it
 
     private bool trackingAllowed;
     private bool trackingDelayTimers;
@@ -320,6 +321,8 @@ public class ProjectileSystem : MonoBehaviour
         beingDestroyed = true;
         
         transform.DOKill(this);
+        
+        weaponPartFiredFrom.spawnedProjectiles.Remove(gameObject);
         
         // Preserve any effects within dontDestroyLingeringEffects, such as trails, audio, particles
         // Anything not in this list will be destroyed with the projectile
