@@ -17,16 +17,17 @@ public class WeaponPart : ScriptableObject
     [ConditionalField(nameof(hasMagazine))] public int currentMagazineAmmo;
     [ConditionalField(nameof(hasReserveAmmo))] public int currentReserveAmmo;
     
-    public GameObject currentProjectile;
-    public List<GameObject> spawnedProjectiles;
+    [ReadOnly] public GameObject currentProjectile;
+    [ReadOnly] public List<GameObject> spawnedProjectiles;
+    
+    [ReadOnly] public float burstCounter;
+    [ReadOnly] public int firePointCounter;
+    [ReadOnly] public float baseFireRate;
     
     public Task cycleTask;
     public CancellationTokenSource cycleCTS;
     public Task reloadTask;
     public CancellationTokenSource reloadCTS;
-    public float burstCounter;
-    public int firePointCounter;
-    public float baseFireRate;
     
     
     [ReadOnly] public FiringState firingState;
