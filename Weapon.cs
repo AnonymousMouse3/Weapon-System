@@ -35,7 +35,6 @@ public class Weapon : MonoBehaviour
     [SerializeField, ReadOnly] public GameObject worldAimpointInstance;
     
     [SerializeField, ReadOnly] public GameObject target;
-    [SerializeField, ReadOnly] public GameObject currentProjectile;
     [SerializeField] public List<GameObject> firePoints;
     [SerializeField] public bool cycleFirePoints;
     
@@ -87,6 +86,10 @@ public class Weapon : MonoBehaviour
             //replace with an actual check on start
             weaponPart.firingState = WeaponPart.FiringState.ReadyToFire;
             weaponPart.reloadState = WeaponPart.ReloadState.ReadyToFire;
+            
+            weaponPart.cycleTask = Task.CompletedTask;
+            weaponPart.reloadTask = Task.CompletedTask;
+            
             weaponPart.fireInterval = 60 / weaponPart.fireRate;
 
             weaponPart.baseFireRate = weaponPart.fireInterval;
@@ -94,9 +97,26 @@ public class Weapon : MonoBehaviour
             weaponPart.isChamberLoaded = true; // change dynamically
             weaponPart.currentMagazineAmmo = weaponPart.magazineCapacity;
             weaponPart.currentReserveAmmo = weaponPart.maxReserveAmmo; // change dynamically in future, obviously
+            
+            if (weaponPart.projectilePrefabs.IsNullOrEmpty()) { Debug.Log("Weapon part has no projectile. Assign one in the inspector."); continue; }
+            weaponPart.currentProjectile = weaponPart.projectilePrefabs[0]; // change/remember the default during gameplay? hardcoded for now
+        }
 
-            if (weaponPart.projectilePrefabs.IsNullOrEmpty()) { Debug.Log("Weapon part has no projectile. Assign one in the inspector."); return;}
-            currentProjectile = weaponPart.projectilePrefabs[0]; // change/remember the default during gameplay? hardcoded for now
+        foreach (WeaponAction weaponAction in weaponScriptableObject.WeaponActions)
+        {
+            foreach (WeaponActionCondition weaponActionCondition in weaponAction.ActionConditions)
+            {
+                if (weaponActionCondition.ConditionType != WeaponActionCondition.WeaponActionConditionType.ChargedForTime) continue;
+
+                InputAction action = weaponActionCondition.ActionToMonitor.InputActionListenedTo;
+                
+                string overrideHoldInteraction = $"Hold(duration={weaponActionCondition.ChargeTime})";
+
+                for (int i = 0; i < action.bindings.Count; i++)
+                {
+                    action.ApplyBindingOverride(i, new InputBinding { overrideInteractions = overrideHoldInteraction });
+                }
+            }
         }
     }
 
