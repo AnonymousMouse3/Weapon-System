@@ -4,7 +4,6 @@ using DG.Tweening;
 using JetBrains.Annotations;
 using MouseLib;
 using MyBox;
-using Spellslinger.UI;
 using UnityEngine;
 using UnityEngine.Serialization;
 using UnityEngine.TextCore.Text;

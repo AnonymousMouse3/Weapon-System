@@ -77,7 +77,10 @@ public class Weapon : MonoBehaviour
         weaponScriptableObject = newWeaponScriptableObject;
 
         weaponOwner = transform.parent.transform.parent.gameObject;
+        
+        #if SPELL_SYSTEM
         weaponOwner.TryGetComponent(out spellManager);
+        #endif
 
         foreach (WeaponPart weaponPart in weaponScriptableObject.WeaponParts)
         {
@@ -529,7 +532,8 @@ public class Weapon : MonoBehaviour
         {
             if (weaponPart.hasMagazine)
             {
-                weaponPart.currentMagazineAmmo -= weaponPart.chamberCapacity;
+                //weaponPart.currentMagazineAmmo -= weaponPart.chamberCapacity;
+                weaponPart.currentMagazineAmmo -= 1;
             }
 
             

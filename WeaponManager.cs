@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using DG.Tweening;
 using MouseLib;
 using MyBox;
-using Spellslinger.UI;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -67,8 +66,9 @@ public class WeaponManager : MonoBehaviour
     private CancellationTokenSource globalCooldownCTS;
     private Task weaponSlotCooldownTask;
     private CancellationTokenSource weaponSlotCooldownCTS;
-    
+    #if SPELL_SYSTEM
     private HUDManager hudManager;
+    #endif
     
     void OnEnable()
     {
@@ -99,7 +99,9 @@ public class WeaponManager : MonoBehaviour
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
+        #if SPELL_SYSTEM
         hudManager = FindObjectOfType<HUDManager>(); // bad
+        #endif
         
         if (weaponSlots.IsNullOrEmpty()) return;
 
