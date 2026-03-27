@@ -296,7 +296,7 @@ public class Weapon : MonoBehaviour
 
             else if (!weaponPart.drawsFromReserveAmmoDirectly && !weaponPart.hasMagazine && !weaponPart.hasChamber)
             {
-                CouldNotFire("weapon has no chamber, magazine, or ability to draw from reserve ammo. check weapon settings"); return;
+                CouldNotFire("weapon has no chamber, magazine, or ability to draw from reserve ammo. check weapon settings", true); return;
             }
         }
         
@@ -314,10 +314,16 @@ public class Weapon : MonoBehaviour
         FireWeapon(weaponPart);
     }
 
-    private void CouldNotFire(string reason)
+    private void CouldNotFire(string reason, bool warning = false)
     {
         // play empty weapon click, etc.
         //if (weaponComponent.debugWeapon)
+        if (warning)
+        {
+            Debug.LogWarning(reason);
+            return;
+        }
+        
         Debug.Log(reason);
     }
     
