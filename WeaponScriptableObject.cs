@@ -37,7 +37,7 @@ public class WeaponScriptableObject : ScriptableObject
     public float weaponEquipTime;
     public float weaponUnequipTime;
     
-    [SerializeField] public List<WeaponPart> WeaponParts;
+    [SerializeReference] public List<WeaponPart> WeaponParts;
     
     public WeaponAimType aimType;
     public enum WeaponAimType

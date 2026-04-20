@@ -82,39 +82,43 @@ public class WeaponPart : ScriptableObject
     
     public int burstLength;
     
-    [Separator("Ammo Settings")]
+    [Separator("Ammo")]
     public bool usesAmmo;
     
+    [Separator("Multi-Shot")]
     public bool consumesMultipleAmmo;
     [ReadOnly(nameof(consumesMultipleAmmo), true)] public int ammoConsumedPerShot = 1;
     
+    [Separator("Chambers")]
     public bool hasChamber;
-    public int chamberCapacity;
+    [ReadOnly(nameof(hasChamber), true)]public List<bool> chambers;
     
+    [Separator("Magazines")]
     public bool hasMagazine;
     [ReadOnly(nameof(hasMagazine), true)] public int magazineCapacity;
     [ReadOnly(nameof(hasMagazine), true)] public bool magazineIsObject;
     //[ReadOnly(nameof(magazineIsObject), true)] public InventoryItem magazineItem;
     
+    [Separator("Reserve Ammo")]
     public bool hasReserveAmmo;
     [ReadOnly(nameof(hasReserveAmmo), true)] public bool drawsFromReserveAmmoDirectly;
     [ReadOnly(nameof(hasReserveAmmo), true)] public int maxReserveAmmo;
     [ReadOnly] public int totalAmmoInWeapon;
     
-    [Separator("Reload Settings")]
+    [Separator("Reload")]
     public bool needsReloading;
     [ReadOnly(nameof(needsReloading), true), Tooltip("Time (s)")] public float reloadTime;
     [ReadOnly(nameof(needsReloading), true)] public bool reloadsRoundsIndividually;
-    [Tooltip("Determines if the weapon will be reloaded if the player attempts to shoot while empty."), ReadOnly(nameof(needsReloading), true)]
-    public bool canQuickReload;
+    [Tooltip("Determines if the weapon will be reloaded if the player attempts to shoot while empty.")]
+    [ReadOnly(nameof(needsReloading), true)] public bool canQuickReload;
 
     [Separator("Project-Specific Settings")] 
     public bool dummyBool;
     
-    [Separator("Advanced AI Settings")]
+    [Separator("Advanced AI")]
     public float expectedDamage;
     
-    [Separator("Spell Settings")]
+    [Separator("Spells")]
     public bool isSpell;
     
     public int manaCost;
