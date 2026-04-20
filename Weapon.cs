@@ -108,7 +108,7 @@ public class Weapon : MonoBehaviour
             {
                 if (weaponActionCondition.ConditionType != WeaponActionCondition.WeaponActionConditionType.ChargedForTime) continue;
 
-                InputAction action = weaponActionCondition.ActionToMonitor.InputActionListenedTo;
+                InputAction action = weaponAction.InputActionListenedTo.action;
                 
                 string overrideHoldInteraction = $"Hold(duration={weaponActionCondition.ChargeTime})";
 
