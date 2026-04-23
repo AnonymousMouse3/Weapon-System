@@ -18,7 +18,7 @@ public class WeaponScriptableObject : ScriptableObject
     // e.g. a gun's chamber can only be loaded if it has one
     // Thus setting hasChamber to false will set chamberLoaded to read only
 
-    public string name;
+    [FormerlySerializedAs("name")] public string weaponName;
     [TextArea] public string desc;
     [TextArea] public string altDesc;
     

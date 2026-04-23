@@ -7,6 +7,7 @@ using MouseLib;
 using MyBox;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.UI;
 
 // OLD INACCURATE DESCRIPTION
 // The Weapon script is the top of the weapon system "stack"
@@ -33,6 +34,7 @@ public class Weapon : MonoBehaviour
 
     [SerializeField, ReadOnly] public Tween weaponTween;
     [SerializeField, ReadOnly] public GameObject worldAimpointInstance;
+    [SerializeField, ReadOnly] public Image worldAimpointInstanceImage;
     
     [SerializeField, ReadOnly] public GameObject target;
     [SerializeField] public List<GameObject> firePoints;
@@ -58,14 +60,18 @@ public class Weapon : MonoBehaviour
 
     private void OnEnable()
     {
+        #if SPELL_SYSTEM
         OnAttackSpeedModifierChange += OnFireRateChange;
+        #endif
 
         onReloadWeapon += StartReload;
     }
 
     private void OnDisable()
     {
+        #if SPELL_SYSTEM
         OnAttackSpeedModifierChange -= OnFireRateChange;
+        #endif
         
         onReloadWeapon -= StartReload;
     }
@@ -75,6 +81,21 @@ public class Weapon : MonoBehaviour
         // Create an instance of the WeaponObject so we don't affect the base stats
         WeaponScriptableObject newWeaponScriptableObject = Instantiate(weaponScriptableObject);
         weaponScriptableObject = newWeaponScriptableObject;
+        
+        List<WeaponPart> newWeaponParts = new List<WeaponPart>();
+        foreach (WeaponPart weaponPart in weaponScriptableObject.WeaponParts)
+        {
+            WeaponPart newWeaponPart = Instantiate(weaponPart);
+            newWeaponParts.Add(newWeaponPart);
+
+            foreach (WeaponAction weaponAction in weaponScriptableObject.WeaponActions)
+            {
+                if (weaponAction.weaponPart != weaponPart) continue;
+                weaponAction.weaponPart = newWeaponPart;
+            }
+        }
+
+        weaponScriptableObject.WeaponParts = newWeaponParts;
 
         weaponOwner = transform.parent.transform.parent.gameObject;
         
@@ -238,6 +259,7 @@ public class Weapon : MonoBehaviour
             weaponPart.burstCounter = 0;
             return;
         }
+        
         switch (weaponPart.currentFireMode)
         {
             case WeaponPart.FireModes.SemiAuto:
@@ -302,15 +324,17 @@ public class Weapon : MonoBehaviour
         
         if (weaponPart.requiresTarget && !target) { CouldNotFire("no target"); return; }
 
+        
+        #if SPELL_SYSTEM
         if (weaponPart.isSpell)
         {
             // use spell manager to run mana checks, etc
             
-            #if SPELL_SYSTEM
+            
             if (!spellManager.SpellChecks(weaponOwner, weaponPart)) { CouldNotFire("one or more spell checks failed"); return; }
-            #endif
+            
         }
-        
+        #endif
         FireWeapon(weaponPart);
     }
 
@@ -358,7 +382,8 @@ public class Weapon : MonoBehaviour
         
         // weapon has shot successfully
         OnWeaponShoot?.Invoke();
-
+        
+        #if SPELL_SYSTEM
         if (weaponPart.isSpell)
         {
             OnSpellCast?.Invoke(weaponOwner, weaponPart);
@@ -368,6 +393,7 @@ public class Weapon : MonoBehaviour
             #endif
             // tell spell manager to consume mana, etc
         }
+        #endif
         
         weaponPart.cycleCTS = new CancellationTokenSource();
         weaponPart.cycleTask = CycleWeapon(weaponPart, weaponPart.cycleCTS.Token);
@@ -463,7 +489,10 @@ public class Weapon : MonoBehaviour
         newProjectileSystem.weaponPartFiredFrom.spawnedProjectiles.Add(newProjectile);
         newProjectileSystem.weaponFiredFrom = this;
         newProjectileSystem.projectileOwner = weaponOwner;
+        
+        #if SPELL_SYSTEM
         newProjectileSystem.projectileComponent.damageComponent.baseDamage *= 1 + weaponPart.damageModifier;
+        #endif
         
         if (newProjectileSystem.TryGetComponent(out Rigidbody projectileRB))
         {
@@ -572,6 +601,7 @@ public class Weapon : MonoBehaviour
         //On hit checks will go in here and allow subscribing to a on hit event
     }
 
+    #if SPELL_SYSTEM
     public void ModifyAttackSpeed(WeaponPart weaponPart, float mod)
     {
         weaponPart.attackSpeedModifier = mod;
@@ -595,4 +625,5 @@ public class Weapon : MonoBehaviour
         weaponPart.damageModifier = 0;
         weaponPart.attackSpeedModifier = 0;
     }
+    #endif
 }

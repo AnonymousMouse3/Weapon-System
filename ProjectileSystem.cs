@@ -236,22 +236,8 @@ public class ProjectileSystem : MonoBehaviour
                 } 
             }
         }
-        
-        // Determine what particles to spawn depending on the hit object
-        switch (other.gameObject.layer)
-        {
-            // Default
-            case 0:
-                if (projectileComponent.onHitParticles.Count <= 0) break;
-                Instantiate(projectileComponent.onHitParticles[0], other.contacts[0].point, Quaternion.identity);
-                break;
-            
-            // Enemy
-            case 7:
-                if (projectileComponent.onHitParticles.Count <= 0) break;
-                Instantiate(projectileComponent.onHitParticles[1], other.contacts[0].point, Quaternion.identity);
-                break;
-        }
+
+        SpawnParticlesOnImpact(other);
 
         if (projectileComponent.detonateWarheadsOnImpact)
         {
@@ -296,6 +282,16 @@ public class ProjectileSystem : MonoBehaviour
 
         transform.DOComplete(this);
         DestroyProjectile();
+    }
+
+    private void SpawnParticlesOnImpact(Collision collision)
+    {
+        foreach (ParticlesAndLayers particleAndLayer in projectileComponent.onHitParticles)
+        {
+            if (!MouseTools.IsLayerInLayerMask(collision.gameObject.layer, particleAndLayer.layers)) continue;
+            
+            Instantiate(particleAndLayer.particles, collision.contacts[0].point, Quaternion.identity);
+        }
     }
 
     private void ApplyPassiveEffectsToTarget(GameObject target)

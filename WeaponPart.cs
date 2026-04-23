@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using MyBox;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 [Serializable, CreateAssetMenu(fileName = "WeaponPart", menuName = "Weapon Part")]
 public class WeaponPart : ScriptableObject
@@ -115,9 +116,28 @@ public class WeaponPart : ScriptableObject
     [Separator("Project-Specific Settings")] 
     public bool dummyBool;
     
+    
+    
+    #if SQUADS
     [Separator("Advanced AI")]
     public float expectedDamage;
     
+    [FormerlySerializedAs("squadWeaponTags")] [Separator("Squad Settings")]
+    
+    // these tags are not meant to replace weapon attributes (things which would be shown on a stats screen)
+    // these are simply to be used to determine how weapons are selected under situations like direct control
+    public SquadWeaponTags squadWeaponTag;
+    public enum SquadWeaponTags
+    {
+        RapidFire,
+        SingleShot,
+        ShortRange,
+        Heavy,
+        Vehicle,
+    }
+    #endif
+    
+    #if SPELL_SYSTEM
     [Separator("Spells")]
     public bool isSpell;
     
@@ -141,4 +161,5 @@ public class WeaponPart : ScriptableObject
     
     public float attackSpeedModifier;
     public float damageModifier;
+    #endif
 }
