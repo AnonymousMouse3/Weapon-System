@@ -7,6 +7,7 @@ using MouseLib;
 using MyBox;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.UIElements;
 
 [Serializable]
 public class WeaponSlot
@@ -46,6 +47,8 @@ public class WeaponManager : MonoBehaviour
     public static OnBeginGlobalCooldown onBeginGlobalCooldown;
     public delegate void OnBeginWeaponSlotGlobalCooldown(GameObject validationObject, WeaponSlot weaponSlot, float cooldown);
     public static OnBeginWeaponSlotGlobalCooldown onBeginWeaponSlotGlobalCooldown;
+
+    
     
     public static event Action<GameObject, GameObject> OnRegisterWeaponAiming;
     public static event Action<GameObject, GameObject> OnUnregisterWeaponAiming;
@@ -66,9 +69,15 @@ public class WeaponManager : MonoBehaviour
     private CancellationTokenSource globalCooldownCTS;
     private Task weaponSlotCooldownTask;
     private CancellationTokenSource weaponSlotCooldownCTS;
+    
     #if SPELL_SYSTEM
     private HUDManager hudManager;
     #endif
+    
+    #if SQUADS
+    private bool squadMode;
+    #endif
+    
     
     void OnEnable()
     {
@@ -129,6 +138,7 @@ public class WeaponManager : MonoBehaviour
         if (weapon.weaponScriptableObject.weaponAimpointIcon)
         {
             weapon.worldAimpointInstance = Instantiate(weapon.weaponScriptableObject.weaponAimpointIcon);
+            weapon.worldAimpointInstance.TryGetComponent(out weapon.worldAimpointInstanceImage);
         }
             
         if (!weaponSlot.AimWithAimingSystem) return;
@@ -349,7 +359,7 @@ public class WeaponManager : MonoBehaviour
         // for now, this removes the first matching weapon - unsure if this works
         foreach (Weapon weapon in weaponSlot.WeaponPrefabs)
         {
-            if (weapon.weaponScriptableObject.name != targetWeapon.weaponScriptableObject.name) continue;
+            if (weapon.weaponScriptableObject.weaponName != targetWeapon.weaponScriptableObject.weaponName) continue;
             weaponToRemove = weapon;
         }
         

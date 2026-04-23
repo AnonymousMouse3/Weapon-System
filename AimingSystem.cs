@@ -12,12 +12,12 @@ public class AimingSystem : MonoBehaviour
 {
     public delegate void OnSetAIAimTargetingMode(GameObject validationObject, AIAimTargetingMode newAIAimTargetingMode);
     public static OnSetAIAimTargetingMode onSetAIAimTargetingMode;
-    public delegate void OnSetAimType(GameObject validationObject, WeaponScriptableObject.WeaponAimType newAimType);
-    public static OnSetAimType onSetAimType;
-    public delegate void OnSetTargetAimpoint(GameObject validationObject, GameObject newTargetAimpoint);
-    public static OnSetTargetAimpoint onSetTargetAimpoint;
-    public delegate void OnSetTargetCharacter(GameObject validationObject, GameObject newTargetCharacter);
-    public static OnSetTargetCharacter onSetTargetCharacter;
+    public delegate void OnSetAimpoint(GameObject validationObject, GameObject newAimpoint);
+    public static OnSetAimpoint onSetAimpoint;
+    public delegate void OnMoveAimpoint(GameObject validationObject, Vector3 newPosition);
+    public static OnMoveAimpoint onMoveAimpoint;
+    public delegate void OnSetTargetGameObject(GameObject validationObject, GameObject newTargetCharacter);
+    public static OnSetTargetGameObject onSetTargetGameObject;
     public static event Action OnReportAIAimState;
     public static event Action<GameObject, GameObject> OnTargetLock;
     public static event Action<GameObject, GameObject> OnTargetLost;
@@ -36,7 +36,7 @@ public class AimingSystem : MonoBehaviour
     public enum AIAimTargetingMode
     {
         AimAtPoint,
-        AimAtTarget,
+        AimAtGameObject,
     }
     
     public List<GameObject> WeaponObjectsToAim => weaponObjectsToAim; // Added this because I needed to access the current equipped weapon for the save system.
@@ -49,12 +49,12 @@ public class AimingSystem : MonoBehaviour
     [Separator("Settings")]
     [SerializeField] private bool aimWithMainCamera;
     
-    public GameObject TargetAimpoint
+    public GameObject Aimpoint
     {
-        get => targetAimpoint;
-        set => targetAimpoint = value;
+        get => aimpoint;
+        set => aimpoint = value;
     }
-    [SerializeField] private GameObject targetAimpoint;
+    [SerializeField] private GameObject aimpoint;
     
     public GameObject TargetCharacter
     {
@@ -70,13 +70,23 @@ public class AimingSystem : MonoBehaviour
     [SerializeField] LayerMask enemyLayerMask; // RENAME TO TARGETABLE LAYERS, PER WEAPON
     [SerializeField] LayerMask nonTransparentLayerMask; // PER WEAPON
     
-    [SerializeField] private Vector3 defaultAimpoint = new (100, 0, 0);
     [SerializeField] private bool aimCharacterInsteadOfWeapon; // temporary
+    
+    
+    public LineRenderer AimLine;
     
     [Separator("Debug")]
     [SerializeField] private bool debugAim;
     
     private Camera mainCamera;
+    
+    public bool DisplayAimLine
+    {
+        get => displayAimLine;
+        set => displayAimLine = value;
+    }
+    
+    private bool displayAimLine;
 
     void OnEnable()
     {
@@ -84,9 +94,10 @@ public class AimingSystem : MonoBehaviour
         WeaponManager.OnUnregisterWeaponAiming += UnregisterWeapon;
         WeaponManager.OnSetAimingAllowed += SetAimingAllowed;
         WeaponManager.OnCleanupTargetLocks += CleanupTargetLocks;
-        onSetTargetCharacter += SetTargetCharacter;
-        onSetTargetAimpoint += SetTargetAimpoint;
+        onSetTargetGameObject += SetTargetGameObject;
+        onSetAimpoint += SetAimpoint;
         onSetAIAimTargetingMode += SetAIAimMode;
+        onMoveAimpoint += MoveAimpoint;
     }
 
     void OnDisable()
@@ -95,9 +106,10 @@ public class AimingSystem : MonoBehaviour
         WeaponManager.OnUnregisterWeaponAiming -= UnregisterWeapon;
         WeaponManager.OnSetAimingAllowed -= SetAimingAllowed;
         WeaponManager.OnCleanupTargetLocks -= CleanupTargetLocks;
-        onSetTargetCharacter -= SetTargetCharacter;
-        onSetTargetAimpoint -= SetTargetAimpoint;
+        onSetTargetGameObject -= SetTargetGameObject;
+        onSetAimpoint -= SetAimpoint;
         onSetAIAimTargetingMode -= SetAIAimMode;
+        onMoveAimpoint -= MoveAimpoint;
     }
     
     // Start is called once before the first execution of Update after the MonoBehaviour is created
@@ -105,16 +117,14 @@ public class AimingSystem : MonoBehaviour
     {
         mainCamera = Camera.main;
         targetsInCone = new List<Collider>();
+        TryGetComponent(out AimLine);
     }
 
     // Update is called once per frame
     void FixedUpdate()
     {
-        if (aimWithMainCamera)
-        {
-            PlaceCameraAimpoint();
-        }
-
+        if (aimWithMainCamera) PlaceCameraAimpoint();
+        
         if (weaponObjectsToAim.IsNullOrEmpty()) return;
         
         foreach (GameObject weaponObject in weaponObjectsToAim)
@@ -123,14 +133,9 @@ public class AimingSystem : MonoBehaviour
             
             weaponObject.TryGetComponent(out Weapon weapon);
             WeaponScriptableObject weaponComponent = weapon.weaponScriptableObject;
+            if (!weapon || !weaponComponent) return;
             
-            if (!weapon) return;
-            if (weaponComponent == null) return;
-
-            if (AimingAllowed)
-            {
-                AimWeapon(weaponObject, weapon, weaponComponent);
-            }
+            if (AimingAllowed) AimWeapon(weaponObject, weapon, weaponComponent);
             
             PlaceWorldAimpoint(weaponObject, weapon, weaponComponent);
             
@@ -158,17 +163,14 @@ public class AimingSystem : MonoBehaviour
 
     private void PlaceCameraAimpoint()
     {
-        if (!targetAimpoint) return;
+        if (!aimpoint) return;
         
         Ray ray = new Ray(mainCamera.transform.position, mainCamera.transform.forward);
         Physics.Raycast(ray.origin, ray.direction, out RaycastHit hit, maxAimDistance, nonTransparentLayerMask);
         
-        targetAimpoint.transform.position = hit.point;
+        aimpoint.transform.position = hit.point;
         
-        if (!hit.collider)
-        {
-            targetAimpoint.transform.position = ray.GetPoint(maxAimDistance);
-        }
+        if (!hit.collider) aimpoint.transform.position = ray.GetPoint(maxAimDistance);
         
         if (!debugAim) return;
         Debug.DrawRay(mainCamera.transform.position, mainCamera.transform.forward * maxAimDistance, Color.blue, 0.01f);
@@ -201,7 +203,18 @@ public class AimingSystem : MonoBehaviour
         {
             OnPlaceWorldCrosshair?.Invoke(weapon, mainCamera.WorldToScreenPoint(indicatorPos), 0.025f);
         }
-        
+
+        // set aim line positions to firepoint and aimpoint, if we should display it - set to zero if otherwise
+        if (AimLine)
+        {
+            if (displayAimLine)
+            {
+                AimLine.enabled = true;
+                AimLine.SetPositions(new[] { firePointPos, indicatorPos});
+            }
+            else AimLine.enabled = false;
+        }
+
         if (!debugAim) return;
         Debug.DrawRay(firePointPos, firePointForward * maxAimDistance, Color.green, 0.01f);
     }
@@ -212,14 +225,13 @@ public class AimingSystem : MonoBehaviour
         switch (currentAIAimTargetingMode)
         {
             case AIAimTargetingMode.AimAtPoint:
-                localTarget = targetAimpoint;
+                localTarget = aimpoint;
                 break;
-            
-            case AIAimTargetingMode.AimAtTarget:
+            case AIAimTargetingMode.AimAtGameObject:
                 localTarget = targetCharacter;
                 break;
         }
-
+        
         if (!localTarget) return;
         if (weapon.weaponTween == null)
         {
@@ -338,13 +350,19 @@ public class AimingSystem : MonoBehaviour
         currentAIAimTargetingMode = newAIAimTargetingMode;
     }
 
-    private void SetTargetAimpoint(GameObject validationObject, GameObject newAimpoint)
+    private void SetAimpoint(GameObject validationObject, GameObject newAimpoint)
     {
         if (validationObject != gameObject) return;
-        targetAimpoint = newAimpoint;
+        aimpoint = newAimpoint;
+    }
+
+    private void MoveAimpoint(GameObject validationObject, Vector3 newPosition)
+    {
+        if (validationObject != gameObject) return;
+        aimpoint.transform.position = newPosition;
     }
     
-    private void SetTargetCharacter(GameObject validationObject, GameObject newCharacter)
+    private void SetTargetGameObject(GameObject validationObject, GameObject newCharacter)
     {
         if (validationObject != gameObject) return;
         targetCharacter = newCharacter;

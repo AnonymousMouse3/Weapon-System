@@ -43,6 +43,13 @@ public class DamageComponent
 }
 
 [Serializable]
+public class ParticlesAndLayers
+{
+    public ParticleSystem particles;
+    public LayerMask layers;
+}
+
+[Serializable]
 public class ProjectileComponent
 {
     [Tooltip("The prefab of the current projectile.")]
@@ -52,7 +59,7 @@ public class ProjectileComponent
     [Tooltip("The GameObject(s) that the projectile is able to spawn on impact, during flight, etc.")]
     public List<GameObject> projectileWarheads;
     [Tooltip("The on-hit particle system of the projectile.")]
-    public List<ParticleSystem> onHitParticles;
+    public List<ParticlesAndLayers> onHitParticles;
     
     // This is set on-the-fly by the projectile
     [ReadOnly, Tooltip("The team the projectile belongs to. It can damage all teams other than its own")]
