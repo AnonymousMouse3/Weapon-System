@@ -69,6 +69,7 @@ public class WeaponManager : MonoBehaviour
     private CancellationTokenSource globalCooldownCTS;
     private Task weaponSlotCooldownTask;
     private CancellationTokenSource weaponSlotCooldownCTS;
+    public bool weaponsUnloaded;
     
     #if SPELL_SYSTEM
     private HUDManager hudManager;
@@ -145,6 +146,40 @@ public class WeaponManager : MonoBehaviour
         
         // Register the new weapon with the aiming system
         OnRegisterWeaponAiming?.Invoke(gameObject, newWeaponGameObject);
+    }
+    
+    public void LoadAllExistingWeapons()
+    {
+        foreach (WeaponSlot slot in WeaponSlots)
+        {
+            Weapon weapon = slot.CurrentWeapon;
+            
+            OnRegisterWeaponAiming?.Invoke(gameObject, weapon.gameObject);
+            weapon.gameObject.SetActive(true);
+            weapon.worldAimpointInstance.SetActive(true);
+            weaponsUnloaded = false;
+        }
+    }
+
+    public void UnloadAllWeapons()
+    {
+        foreach (WeaponSlot slot in WeaponSlots)
+        {
+            Weapon oldWeapon = slot.CurrentWeapon;
+            
+            OnUnregisterWeaponAiming?.Invoke(gameObject, oldWeapon.gameObject);
+            slot.CurrentWeapon.ReleaseTrigger(gameObject);
+            
+            oldWeapon.gameObject.transform.DOKill();
+            oldWeapon.gameObject.SetActive(false);
+        
+            oldWeapon.worldAimpointInstance.transform.DOKill();
+            oldWeapon.worldAimpointInstance.SetActive(false);
+        
+            OnCleanupTargetLocks?.Invoke(oldWeapon);
+            // remove all target
+            weaponsUnloaded = true;
+        }
     }
 
     // feed inputs to the weapon and feed only the right type of input (press or release, etc)

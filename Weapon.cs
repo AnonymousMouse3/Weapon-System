@@ -53,6 +53,7 @@ public class Weapon : MonoBehaviour
         set => weaponScriptableObject  = value;
     }
     [SerializeField, DisplayInspector] public WeaponScriptableObject weaponScriptableObject;
+    [SerializeField] private bool debugWeapon;
     
     #if SPELL_SYSTEM
     [SerializeField] private SpellManager spellManager;
@@ -341,14 +342,13 @@ public class Weapon : MonoBehaviour
     private void CouldNotFire(string reason, bool warning = false)
     {
         // play empty weapon click, etc.
-        //if (weaponComponent.debugWeapon)
         if (warning)
         {
-            Debug.LogWarning(reason);
+            if (debugWeapon) Debug.LogWarning(reason);
             return;
         }
         
-        Debug.Log(reason);
+        if (debugWeapon) Debug.Log(reason);
     }
     
     private void FireWeapon(WeaponPart weaponPart)
