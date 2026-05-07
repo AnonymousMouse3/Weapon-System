@@ -145,6 +145,27 @@ public class Weapon : MonoBehaviour
         }
     }
 
+    public void ShootWeaponDirectly(GameObject validationObject, bool pressOrRelease)
+    {
+        if (validationObject != weaponOwner) return;
+
+        // shoots the first weapon part directly - use for simple weapons for now, expand in future
+        WeaponPart currentWeaponPart = WeaponScriptableObject.WeaponParts[0];
+        if (!currentWeaponPart) return;
+        
+        if (pressOrRelease)
+        {
+            currentWeaponPart.isTriggerPulled = true;
+            TryFireWeaponLoop(currentWeaponPart);
+            // set weapon action to completed
+        }
+        else
+        {
+            currentWeaponPart.isTriggerPulled = false;
+            OnWeaponRelease?.Invoke(this);
+        }
+    }
+
     public void ProcessWeaponAction(GameObject validationObject, InputAction action, bool pressOrRelease)
     {
         if (validationObject != weaponOwner) return;
