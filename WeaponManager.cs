@@ -37,6 +37,8 @@ public class WeaponManager : MonoBehaviour
     public static OnReplaceTargetWeapon onReplaceTargetWeapon;
     public delegate void OnReplaceWeaponInSlot(GameObject validationObject, string weaponSlotName, Weapon replacement, int index);
     public static OnReplaceWeaponInSlot onReplaceWeaponInSlot;
+    public delegate void OnHandleWeaponReloadInputs(GameObject validationObject, InputAction action = null);
+    public static OnHandleWeaponReloadInputs onHandleWeaponReloadInputs;
     public delegate void OnSwapWeapons(GameObject validationObject, string weaponSlotName, int weaponIndex);
     public static OnSwapWeapons onSwapWeapons;
     public delegate void OnCycleWeapons(GameObject validationObject, string weaponSlotName, int direction);
@@ -47,8 +49,6 @@ public class WeaponManager : MonoBehaviour
     public static OnBeginGlobalCooldown onBeginGlobalCooldown;
     public delegate void OnBeginWeaponSlotGlobalCooldown(GameObject validationObject, WeaponSlot weaponSlot, float cooldown);
     public static OnBeginWeaponSlotGlobalCooldown onBeginWeaponSlotGlobalCooldown;
-
-    
     
     public static event Action<GameObject, GameObject> OnRegisterWeaponAiming;
     public static event Action<GameObject, GameObject> OnUnregisterWeaponAiming;
@@ -87,6 +87,7 @@ public class WeaponManager : MonoBehaviour
         onRemoveWeaponFromSlot += RemoveWeaponFromSlot;
         onReplaceWeaponInSlot += ReplaceWeaponInSlot;
         onReplaceTargetWeapon += ReplaceTargetWeapon;
+        onHandleWeaponReloadInputs += HandleWeaponReloadInputs;
         onSwapWeapons += BeginWeaponSwap;
         onCycleWeapons += BeginWeaponCycle;
         onBeginGlobalCooldown += BeginGlobalCooldown;
@@ -100,6 +101,7 @@ public class WeaponManager : MonoBehaviour
         onRemoveWeaponFromSlot -= RemoveWeaponFromSlot;
         onReplaceWeaponInSlot -= ReplaceWeaponInSlot;
         onReplaceTargetWeapon -= ReplaceTargetWeapon;
+        onHandleWeaponReloadInputs -= HandleWeaponReloadInputs;
         onSwapWeapons -= BeginWeaponSwap;
         onCycleWeapons -= BeginWeaponCycle;
         onBeginGlobalCooldown -= BeginGlobalCooldown;
@@ -201,6 +203,21 @@ public class WeaponManager : MonoBehaviour
             if (weaponSlot.SlotOnCooldown) return;
                     
             weaponSlot.CurrentWeapon.ProcessWeaponAction(gameObject, action, pressOrRelease);
+        }
+    }
+
+    private void HandleWeaponReloadInputs(GameObject validationObject, InputAction action)
+    {
+        if (validationObject != gameObject) return;
+        
+        foreach (WeaponSlot weaponSlot in weaponSlots)
+        {
+            if (weaponSlot.WeaponPrefabs.IsNullOrEmpty()) continue;
+
+            if (weaponSlot.SwappingWeapon) return;
+            if (weaponSlot.SlotOnCooldown) return;
+            
+            weaponSlot.CurrentWeapon.ProcessWeaponReloadAction(gameObject, action);
         }
     }
 

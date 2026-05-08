@@ -195,6 +195,15 @@ public class Weapon : MonoBehaviour
         }
     }
 
+    public void ProcessWeaponReloadAction(GameObject validationObject, InputAction action)
+    {
+        foreach (WeaponPart weaponPart in weaponScriptableObject.WeaponParts)
+        {
+            if (weaponPart.reloadAction.action != action) continue;
+            StartReload(weaponPart, weaponOwner);
+        }
+    }
+
     public void ReleaseTrigger(GameObject validationObject)
     {
         if (validationObject != weaponOwner) return;

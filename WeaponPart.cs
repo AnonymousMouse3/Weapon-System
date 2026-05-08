@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using MyBox;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.Serialization;
 
 [Serializable, CreateAssetMenu(fileName = "WeaponPart", menuName = "Weapon Part")]
@@ -107,6 +108,7 @@ public class WeaponPart : ScriptableObject
     [ReadOnly] public int totalAmmoInWeapon;
     
     [Separator("Reload")]
+    public InputActionReference reloadAction;
     public bool needsReloading;
     [ReadOnly(nameof(needsReloading), true), Tooltip("Time (s)")] public float reloadTime;
     [ReadOnly(nameof(needsReloading), true)] public bool reloadsRoundsIndividually;

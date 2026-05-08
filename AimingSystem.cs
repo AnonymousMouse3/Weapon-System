@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using DG.Tweening;
 using JetBrains.Annotations;
 using MouseLib;
@@ -48,6 +49,8 @@ public class AimingSystem : MonoBehaviour
     
     [Separator("Settings")]
     [SerializeField] private bool aimWithMainCamera;
+    [SerializeField] private bool turnCharacterWithAim;
+    [SerializeField] private float characterTurnTime;
     
     public GameObject Aimpoint
     {
@@ -79,6 +82,8 @@ public class AimingSystem : MonoBehaviour
     [SerializeField] private bool debugAim;
     
     private Camera mainCamera;
+    private Rigidbody rb;
+    private bool displayAimLine;
     
     public bool DisplayAimLine
     {
@@ -86,7 +91,7 @@ public class AimingSystem : MonoBehaviour
         set => displayAimLine = value;
     }
     
-    private bool displayAimLine;
+    
 
     void OnEnable()
     {
@@ -118,12 +123,17 @@ public class AimingSystem : MonoBehaviour
         mainCamera = Camera.main;
         targetsInCone = new List<Collider>();
         TryGetComponent(out AimLine);
+        TryGetComponent(out rb);
     }
 
     // Update is called once per frame
     void FixedUpdate()
     {
         if (aimWithMainCamera) PlaceCameraAimpoint();
+        
+        // todo should select a specific weapon instead of default
+        if (turnCharacterWithAim) TurnCharacterWithAim();
+        
         
         if (weaponObjectsToAim.IsNullOrEmpty()) return;
         
@@ -307,19 +317,45 @@ public class AimingSystem : MonoBehaviour
         OnTargetLost?.Invoke(gameObject, previousTarget);
     }
     
-    private void CheckAimStatus()
+    private void CheckAimStatus(Weapon weapon)
     {
         // check if tween is within X distance to completion
         
         // check line of sight and see if pointing at target (mandatory if direct fire weapon)
         // If the raycast hits our target, we are aimed; if not, we're still aiming
-        //currentAimState = hit.collider.gameObject == target ? AimState.Aimed : AimState.Aiming;
+
+        // (todo this is simple logic for now, follow the other comments for advanced targeting decisions)
+        switch (currentAIAimTargetingMode)
+        {
+            case AIAimTargetingMode.AimAtPoint:
+                break;
+            case AIAimTargetingMode.AimAtGameObject:
+                Ray aimRay = new Ray(weapon.firePoints[0].transform.position, weapon.firePoints[0].transform.forward);
+                Physics.Raycast(aimRay, out RaycastHit aimHit, maxAimDistance);
+                
+                currentAIAimState = aimHit.collider.gameObject == targetCharacter ? AIAimState.Aimed : AIAimState.Aiming;
+                
+                break;
+        }
         
         // wait until weapon is steady, strengthens chance to hit
         
         // check ballistic trajectory and see if lined up on target (mandatory if indirect fire weapon, optional and strengthens chance to hit otherwise)
         // otherwise check for obstacles etc
         // some smart checks such as moving object going to obscure target before its hit, target moving out of sight (reduces chance to hit)
+    }
+
+    public async Task<bool> WaitUntilAimed(Weapon weapon, float maxWaitTime)
+    {
+        for (float i = 0; i < maxWaitTime * 100; i += maxWaitTime / 100f)
+        {
+            await MouseTools.AwaitableTimer(maxWaitTime / 100f);
+            
+            CheckAimStatus(weapon);
+            if (currentAIAimState == AIAimState.Aimed) return true;
+        }
+        
+        return false;
     }
     
     private void SetAimingAllowed(bool value)
@@ -366,5 +402,25 @@ public class AimingSystem : MonoBehaviour
     {
         if (validationObject != gameObject) return;
         targetCharacter = newCharacter;
+    }
+    
+    private void TurnCharacterWithAim()
+    {
+        Vector3 aimDirection = Vector3.zero;
+        switch (currentAIAimTargetingMode)
+        {
+            case AIAimTargetingMode.AimAtPoint:
+                aimDirection = aimpoint.transform.position - transform.position;
+                break;
+            case AIAimTargetingMode.AimAtGameObject:
+                aimDirection = targetCharacter.transform.position - transform.position;
+                break;
+        }
+        
+        Vector3 flatAimDirection = new Vector3(aimDirection.x, 0f, aimDirection.z);
+            
+        if (flatAimDirection == Vector3.zero) return;
+        Quaternion flatAimQuaternion = Quaternion.LookRotation(flatAimDirection, Vector3.up);
+        Tween rotationTween = transform.DORotateQuaternion(flatAimQuaternion, characterTurnTime);
     }
 }
