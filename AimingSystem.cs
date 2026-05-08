@@ -134,7 +134,6 @@ public class AimingSystem : MonoBehaviour
         // todo should select a specific weapon instead of default
         if (turnCharacterWithAim) TurnCharacterWithAim();
         
-        
         if (weaponObjectsToAim.IsNullOrEmpty()) return;
         
         foreach (GameObject weaponObject in weaponObjectsToAim)
