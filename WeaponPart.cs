@@ -27,6 +27,7 @@ public class WeaponPart : ScriptableObject
     [ConditionalField(nameof(hasReserveAmmo))] public int currentReserveAmmo;
     
     [ReadOnly] public float fireRateMultiplier = 1;
+    [ReadOnly] public float damageMultiplier = 1;
     [ReadOnly] public float burstCounter;
     
     [ReadOnly] public GameObject worldAimpointInstance;
@@ -88,10 +89,9 @@ public class WeaponPart : ScriptableObject
     public bool passTargetToProjectile;
     public bool updateTargetContinuously;
     
-    public bool shootsMultipleProjectiles;
-    [ReadOnly(nameof(shootsMultipleProjectiles), true)] public int projectilesPerShot = 1;
-
-    public float projectileSpreadAngle;
+    [Separator("Effects")]
+    public List<PassiveEffectScriptableObject> passiveEffectsAppliedToTarget;
+    public List<PassiveEffectScriptableObject> passiveEffectsAppliedToSelf;
 
     [Separator("Fire Mode Settings")]
     [Tooltip("Rounds/min")] public float fireRate;
@@ -114,31 +114,34 @@ public class WeaponPart : ScriptableObject
     
     [Separator("Multi-Shot")]
     public bool consumesMultipleAmmo;
-    [ReadOnly(nameof(consumesMultipleAmmo), true)] public int ammoConsumedPerShot = 1;
+    public int ammoConsumedPerShot = 1;
+    public bool shootsMultipleProjectiles;
+    public int projectilesPerShot = 1;
+    public float projectileSpreadAngle;
     
     [Separator("Chambers")]
     public bool hasChamber;
-    [ReadOnly(nameof(hasChamber), true)]public List<bool> chambers;
+    [ConditionalField(nameof(hasChamber), false)]public List<bool> chambers;
     
     [Separator("Magazines")]
     public bool hasMagazine;
-    [ReadOnly(nameof(hasMagazine), true)] public int magazineCapacity;
-    [ReadOnly(nameof(hasMagazine), true)] public bool magazineIsObject;
+    [ConditionalField(nameof(hasMagazine), false)] public int magazineCapacity;
+    [ConditionalField(nameof(hasMagazine), false)] public bool magazineIsObject;
     //[ReadOnly(nameof(magazineIsObject), true)] public InventoryItem magazineItem;
     
     [Separator("Reserve Ammo")]
     public bool hasReserveAmmo;
-    [ReadOnly(nameof(hasReserveAmmo), true)] public bool drawsFromReserveAmmoDirectly;
-    [ReadOnly(nameof(hasReserveAmmo), true)] public int maxReserveAmmo;
-    [ReadOnly] public int totalAmmoInWeapon;
+    [ConditionalField(nameof(hasReserveAmmo), false)] public bool drawsFromReserveAmmoDirectly;
+    [ConditionalField(nameof(hasReserveAmmo), false)] public int maxReserveAmmo;
+    [ConditionalField] public int totalAmmoInWeapon;
     
     [Separator("Reload")]
     public bool needsReloading;
-    [ReadOnly(nameof(needsReloading), true)] public InputActionReference reloadAction;
-    [ReadOnly(nameof(needsReloading), true), Tooltip("Time (s)")] public float reloadTime;
-    [ReadOnly(nameof(needsReloading), true)] public bool reloadsRoundsIndividually;
+    [ConditionalField(nameof(needsReloading), false)] public InputActionReference reloadAction;
+    [ConditionalField(nameof(needsReloading), false), Tooltip("Time (s)")] public float reloadTime;
+    [ConditionalField(nameof(needsReloading), false)] public bool reloadsRoundsIndividually;
     [Tooltip("Determines if the weapon will be reloaded if the player attempts to shoot while empty.")]
-    [ReadOnly(nameof(needsReloading), true)] public bool canQuickReload;
+    [ConditionalField(nameof(needsReloading), false)] public bool canQuickReload;
     
     #if SQUADS
     [Separator("Advanced AI")]
@@ -163,13 +166,13 @@ public class WeaponPart : ScriptableObject
     [Separator("Spells")]
     public bool isSpell;
     
-    public int manaCost;
-    public int healthCost;
+    [ConditionalField(nameof(isSpell), false)] public int manaCost;
+    [ConditionalField(nameof(isSpell), false)] public int healthCost;
     
-    [Tooltip("How long until the spell can be re-used")] public float spellCooldownTime;
-    [FormerlySerializedAs("slotCooldownTime")] [Tooltip("How long the spell prevents any spell from being cast")] public float weaponGroupCooldownTime;
+    [ConditionalField(nameof(isSpell), false), Tooltip("How long until the spell can be re-used")] public float spellCooldownTime;
+    [ConditionalField(nameof(isSpell), false), Tooltip("How long the spell prevents any spell from being cast")] public float weaponGroupCooldownTime;
 
-    public SpellType spellType;
+    [ConditionalField(nameof(isSpell), false)] public SpellType spellType;
     public enum SpellType
     {
         Static,
@@ -178,12 +181,7 @@ public class WeaponPart : ScriptableObject
         Uncastable,
     }
     
-    public List<PassiveEffectScriptableObject> passiveEffectsAppliedToTarget;
-    public List<PassiveEffectScriptableObject> passiveEffectsAppliedToCaster;
-    
-    public float damageModifier;
-    
-    public SpellSchool spellSchool;
+    [ConditionalField(nameof(isSpell), false)] public SpellSchool spellSchool;
     
     public enum SpellSchool
     {

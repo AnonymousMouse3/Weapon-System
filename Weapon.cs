@@ -478,7 +478,7 @@ public class Weapon : MonoBehaviour
         newProjectileSystem.projectileOwner = weaponScriptableObject.weaponOwner;
         
         #if SPELL_SYSTEM
-        newProjectileSystem.projectileComponent.damageComponent.baseDamage *= 1 + weaponPart.damageModifier;
+        newProjectileSystem.projectileComponent.damageComponent.baseDamage *= 0 + weaponPart.damageMultiplier;
         #endif
         
         if (newProjectileSystem.TryGetComponent(out Rigidbody projectileRB))
@@ -604,12 +604,12 @@ public class Weapon : MonoBehaviour
 
     public void ModifyDamage(WeaponPart weaponPart, float mod)
     {
-        weaponPart.damageModifier = mod;
+        weaponPart.damageMultiplier = mod;
     }
 
     public void ResetModifiers(WeaponPart weaponPart)
     {
-        weaponPart.damageModifier = 0;
+        weaponPart.damageMultiplier = 1;
         weaponPart.fireRateMultiplier = 1;
     }
     #endif
