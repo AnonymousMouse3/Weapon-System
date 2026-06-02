@@ -6,30 +6,31 @@ using MyBox;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Serialization;
+using UnityEngine.UI;
 
 [Serializable, CreateAssetMenu(fileName = "WeaponPart", menuName = "Weapon Part")]
 public class WeaponPart : ScriptableObject
 {
-    public WeaponScriptableObject parentWeaponScriptableObject;
+    [Separator("Set in Prefab")]
+    [ReadOnly] public GameObject firePoint;
     
     [Separator("Runtime States")] // move these to their individual sections at the top
+    [ReadOnly] public WeaponScriptableObject parentWeaponScriptableObject;
     [ReadOnly] public bool isTriggerPulled;
+    [ReadOnly] public GameObject target;
+    
+    [ReadOnly] public GameObject currentProjectile;
+    [ReadOnly] public List<GameObject> spawnedProjectiles;
     
     [ReadOnly, ConditionalField(nameof(hasChamber))] public bool isChamberLoaded;
     [ConditionalField(nameof(hasMagazine))] public int currentMagazineAmmo;
     [ConditionalField(nameof(hasReserveAmmo))] public int currentReserveAmmo;
     
-    [ReadOnly] public GameObject currentProjectile;
-    [ReadOnly] public List<GameObject> spawnedProjectiles;
-    
+    [ReadOnly] public float fireRateMultiplier = 1;
     [ReadOnly] public float burstCounter;
-    [ReadOnly] public int firePointCounter;
-    [ReadOnly] public float baseFireRate;
     
-    public Task cycleTask;
-    public CancellationTokenSource cycleCTS;
-    public Task reloadTask;
-    public CancellationTokenSource reloadCTS;
+    [ReadOnly] public GameObject worldAimpointInstance;
+    [ReadOnly] public Image worldAimpointInstanceImage;
     
     
     [ReadOnly] public FiringState firingState;
@@ -47,7 +48,31 @@ public class WeaponPart : ScriptableObject
         Reloading,
         ReadyToFire,
     }
+
+    [Separator("Technical Settings")]
+    public WeaponPartFlags weaponPartFlags;
+
+    [Flags]
+    public enum WeaponPartFlags
+    {
+        PrimaryFire,
+        SecondaryFire,
+    }
+
+    [Separator("UI Settings")]
+    public GameObject aimpointIcon;
+    public bool drawAimpoint;
+    public GameObject targetIcon;
+    public bool drawTargetIcon;
     
+    [Separator("Aim Settings")]
+    public WeaponAimType aimType;
+    public enum WeaponAimType
+    {
+        Crosshair,
+        LockOn,
+        GroundOnly
+    }
     
     [Separator("Projectile Settings")]
     public HitscanOrProjectile hitscanOrProjectile;
@@ -108,17 +133,12 @@ public class WeaponPart : ScriptableObject
     [ReadOnly] public int totalAmmoInWeapon;
     
     [Separator("Reload")]
-    public InputActionReference reloadAction;
     public bool needsReloading;
+    [ReadOnly(nameof(needsReloading), true)] public InputActionReference reloadAction;
     [ReadOnly(nameof(needsReloading), true), Tooltip("Time (s)")] public float reloadTime;
     [ReadOnly(nameof(needsReloading), true)] public bool reloadsRoundsIndividually;
     [Tooltip("Determines if the weapon will be reloaded if the player attempts to shoot while empty.")]
     [ReadOnly(nameof(needsReloading), true)] public bool canQuickReload;
-
-    [Separator("Project-Specific Settings")] 
-    public bool dummyBool;
-    
-    
     
     #if SQUADS
     [Separator("Advanced AI")]
@@ -147,7 +167,7 @@ public class WeaponPart : ScriptableObject
     public int healthCost;
     
     [Tooltip("How long until the spell can be re-used")] public float spellCooldownTime;
-    [Tooltip("How long the spell prevents any spell from being cast")] public float slotCooldownTime;
+    [FormerlySerializedAs("slotCooldownTime")] [Tooltip("How long the spell prevents any spell from being cast")] public float weaponGroupCooldownTime;
 
     public SpellType spellType;
     public enum SpellType
@@ -161,7 +181,52 @@ public class WeaponPart : ScriptableObject
     public List<PassiveEffectScriptableObject> passiveEffectsAppliedToTarget;
     public List<PassiveEffectScriptableObject> passiveEffectsAppliedToCaster;
     
-    public float attackSpeedModifier;
     public float damageModifier;
+    
+    public SpellSchool spellSchool;
+    
+    public enum SpellSchool
+    {
+        None,
+        Healing,
+        Pyromancy,
+        Ferromancy,
+        Lunar,
+        Cryomancy,
+        Hydromancy,
+        Aero
+    }
+    
+    [ConditionalField(nameof(spellSchool), false, SpellSchool.Pyromancy)] public int embersCost;
+    [ConditionalField(nameof(spellSchool), false, SpellSchool.Ferromancy)] public int swordCost;
+    [ConditionalField(nameof(spellSchool), false, SpellSchool.Lunar)] public int astralAmmoCost;
+    [ConditionalField(nameof(spellSchool), false, SpellSchool.Hydromancy)] public int waterLevelCost;
     #endif
+    
+    public Task cycleTask;
+    public Task reloadTask;
+    public CancellationTokenSource cycleCTS;
+    public CancellationTokenSource reloadCTS;
+
+    public void SetupWeaponPart(WeaponScriptableObject weaponScriptableObject)
+    {
+        parentWeaponScriptableObject = weaponScriptableObject;
+            
+        //replace with an actual check on start
+        firingState = WeaponPart.FiringState.ReadyToFire;
+        reloadState = WeaponPart.ReloadState.ReadyToFire;
+            
+        cycleTask = Task.CompletedTask;
+        reloadTask = Task.CompletedTask;
+            
+        fireInterval = 60 / fireRate;
+        fireRateMultiplier = 1;
+
+        isChamberLoaded = true; // change dynamically
+        currentMagazineAmmo = magazineCapacity;
+        currentReserveAmmo = maxReserveAmmo; // change dynamically in future, obviously
+            
+        if (projectilePrefabs.IsNullOrEmpty()) { Debug.Log("Weapon part has no projectile. Assign one in the inspector."); return; }
+        currentProjectile = projectilePrefabs[0]; // change/remember the default during gameplay? hardcoded for now
+    }
 }

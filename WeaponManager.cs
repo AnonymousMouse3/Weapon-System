@@ -5,70 +5,71 @@ using System.Threading.Tasks;
 using DG.Tweening;
 using MouseLib;
 using MyBox;
+using Spellslinger.UI;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.Serialization;
 using UnityEngine.UIElements;
 
 [Serializable]
-public class WeaponSlot
+public class WeaponGroup
 {  
     public string name;
     [ReadOnly] public Weapon CurrentWeapon;
     [ReadOnly] public Weapon CurrentWeaponPrefab;
-    [ReadOnly] public bool SlotOnCooldown;
+    [ReadOnly] public bool WeaponGroupOnCooldown;
     [ReadOnly] public bool SwappingWeapon;
     public List<Weapon> WeaponPrefabs;
-    public int MaxWeaponsInSlot;
-    public GameObject WeaponSlotObject;
-    public WeaponScriptableObject.WeaponAimType WeaponSlotCurrentAimType;
+    public int MaxWeaponsInGroup;
+    public GameObject WeaponGroupObject;
     public bool AimWithAimingSystem;
-    public CancellationTokenSource WeaponSlotSwapCTS;
+    public CancellationTokenSource WeaponGroupSwapCTS;
 }
 
 public class WeaponManager : MonoBehaviour
 {
     public delegate void OnHandleWeaponInputs(GameObject validationObject, bool pressOrRelease, InputAction action = null);
     public static OnHandleWeaponInputs onHandleWeaponInputs;
-    public delegate void OnAddWeaponToSlot(GameObject validationObject, string weaponSlotName, Weapon weapon, int index, bool swapToNewWeapon = false);
-    public static OnAddWeaponToSlot onAddWeaponToSlot;
-    public delegate void OnRemoveWeaponFromSlot(GameObject validationObject, string weaponSlotName, Weapon weapon, int index);
-    public static OnRemoveWeaponFromSlot onRemoveWeaponFromSlot;
-    public delegate void OnReplaceTargetWeapon(GameObject validationObject, string weaponSlotName,  Weapon replacement, Weapon target);
+    public delegate void OnAddWeaponToGroup(GameObject validationObject, string weaponGroupName, Weapon weapon, int index, bool swapToNewWeapon = false);
+    public static OnAddWeaponToGroup onAddWeaponToGroup;
+    public delegate void OnRemoveWeaponFromGroup(GameObject validationObject, string weaponGroupName, Weapon weapon, int index);
+    public static OnRemoveWeaponFromGroup onRemoveWeaponFromGroup;
+    public delegate void OnReplaceTargetWeapon(GameObject validationObject, string weaponGroupName,  Weapon replacement, Weapon target);
     public static OnReplaceTargetWeapon onReplaceTargetWeapon;
-    public delegate void OnReplaceWeaponInSlot(GameObject validationObject, string weaponSlotName, Weapon replacement, int index);
-    public static OnReplaceWeaponInSlot onReplaceWeaponInSlot;
+    public delegate void OnReplaceWeaponInGroup(GameObject validationObject, string weaponGroupName, Weapon replacement, int index);
+    public static OnReplaceWeaponInGroup onReplaceWeaponInGroup;
     public delegate void OnHandleWeaponReloadInputs(GameObject validationObject, InputAction action = null);
     public static OnHandleWeaponReloadInputs onHandleWeaponReloadInputs;
-    public delegate void OnSwapWeapons(GameObject validationObject, string weaponSlotName, int weaponIndex);
+    public delegate void OnSwapWeapons(GameObject validationObject, string weaponGroupName, int weaponIndex);
     public static OnSwapWeapons onSwapWeapons;
-    public delegate void OnCycleWeapons(GameObject validationObject, string weaponSlotName, int direction);
+    public delegate void OnCycleWeapons(GameObject validationObject, string weaponGroupName, int direction);
     public static OnCycleWeapons onCycleWeapons;
-    public delegate void OnSwitchAmmoType(GameObject validationObject, GameObject newAmmoType, int weaponSlotIndex);
+    public delegate void OnSwitchAmmoType(GameObject validationObject, GameObject newAmmoType, int weaponGroupIndex);
     public static OnSwitchAmmoType onSwitchAmmoType;
     public delegate void OnBeginGlobalCooldown(GameObject validationObject, float cooldown);
     public static OnBeginGlobalCooldown onBeginGlobalCooldown;
-    public delegate void OnBeginWeaponSlotGlobalCooldown(GameObject validationObject, WeaponSlot weaponSlot, float cooldown);
-    public static OnBeginWeaponSlotGlobalCooldown onBeginWeaponSlotGlobalCooldown;
+    public delegate void OnBeginWeaponGroupGlobalCooldown(GameObject validationObject, WeaponGroup weaponGroup, float cooldown);
+    public static OnBeginWeaponGroupGlobalCooldown onBeginWeaponGroupGlobalCooldown;
     
     public static event Action<GameObject, GameObject> OnRegisterWeaponAiming;
     public static event Action<GameObject, GameObject> OnUnregisterWeaponAiming;
     public static event Action<bool> OnSetAimingAllowed;
-    public static event Action<Weapon> OnCleanupTargetLocks;
+    public static event Action<WeaponPart> OnCleanupTargetLocks;
     public static event Action<WeaponScriptableObject> OnCurrentSpellChange;
-    public List<WeaponSlot> WeaponSlots
+    public List<WeaponGroup> WeaponGroups
     {
-        get => weaponSlots;
-        set => weaponSlots  = value;
+        get => weaponGroups;
+        set => weaponGroups  = value;
     }
     
     [SerializeField] private bool allWeaponsOnGlobalCooldown;
-    [SerializeField] public List<WeaponSlot> weaponSlots;
+    [SerializeField] public List<WeaponGroup> weaponGroups;
 
     private Task weaponSwapTask;
     private Task globalCooldownTask;
     private CancellationTokenSource globalCooldownCTS;
-    private Task weaponSlotCooldownTask;
-    private CancellationTokenSource weaponSlotCooldownCTS;
+    private Task weaponGroupCooldownTask;
+    private CancellationTokenSource weaponGroupCooldownCTS;
     public bool weaponsUnloaded;
     
     #if SPELL_SYSTEM
@@ -83,68 +84,71 @@ public class WeaponManager : MonoBehaviour
     void OnEnable()
     {
         onHandleWeaponInputs += HandleWeaponInputs;
-        onAddWeaponToSlot += AddWeaponToSlot;
-        onRemoveWeaponFromSlot += RemoveWeaponFromSlot;
-        onReplaceWeaponInSlot += ReplaceWeaponInSlot;
+        onAddWeaponToGroup += AddWeaponToGroup;
+        onRemoveWeaponFromGroup += RemoveWeaponFromGroup;
+        onReplaceWeaponInGroup += ReplaceWeaponInGroup;
         onReplaceTargetWeapon += ReplaceTargetWeapon;
         onHandleWeaponReloadInputs += HandleWeaponReloadInputs;
         onSwapWeapons += BeginWeaponSwap;
         onCycleWeapons += BeginWeaponCycle;
         onBeginGlobalCooldown += BeginGlobalCooldown;
-        onBeginWeaponSlotGlobalCooldown += BeginWeaponSlotGlobalCooldown;
+        onBeginWeaponGroupGlobalCooldown += BeginWeaponGroupGlobalCooldown;
     }
 
     void OnDisable()
     {
         onHandleWeaponInputs -= HandleWeaponInputs;
-        onAddWeaponToSlot -= AddWeaponToSlot;
-        onRemoveWeaponFromSlot -= RemoveWeaponFromSlot;
-        onReplaceWeaponInSlot -= ReplaceWeaponInSlot;
+        onAddWeaponToGroup -= AddWeaponToGroup;
+        onRemoveWeaponFromGroup -= RemoveWeaponFromGroup;
+        onReplaceWeaponInGroup -= ReplaceWeaponInGroup;
         onReplaceTargetWeapon -= ReplaceTargetWeapon;
         onHandleWeaponReloadInputs -= HandleWeaponReloadInputs;
         onSwapWeapons -= BeginWeaponSwap;
         onCycleWeapons -= BeginWeaponCycle;
         onBeginGlobalCooldown -= BeginGlobalCooldown;
-        onBeginWeaponSlotGlobalCooldown -= BeginWeaponSlotGlobalCooldown;
+        onBeginWeaponGroupGlobalCooldown -= BeginWeaponGroupGlobalCooldown;
     }
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Start()
+    void Awake()
     {
         #if SPELL_SYSTEM
         hudManager = FindObjectOfType<HUDManager>(); // bad
         #endif
         
-        if (weaponSlots.IsNullOrEmpty()) return;
+        if (weaponGroups.IsNullOrEmpty()) return;
 
-        foreach (WeaponSlot weaponSlot in weaponSlots)
+        foreach (WeaponGroup weaponGroup in weaponGroups)
         {
-            if (weaponSlot.WeaponPrefabs.IsNullOrEmpty()) continue;
-            if (weaponSlot.WeaponPrefabs[0] == null) continue;
+            if (weaponGroup.WeaponPrefabs.IsNullOrEmpty()) continue;
+            if (weaponGroup.WeaponPrefabs[0] == null) continue;
 
-            BeginWeaponSwap(gameObject, weaponSlot.name, 0); // swap to last saved weapon
+            BeginWeaponSwap(gameObject, weaponGroup.name, 0); // swap to last saved weapon
         }
     }
 
-    private void SetupAndInstantiateWeapon(WeaponSlot weaponSlot, Weapon weaponPrefab)
+    private void SetupAndInstantiateWeapon(WeaponGroup weaponGroup, Weapon weaponPrefab)
     {
         // Create the new weapon ingame
-        GameObject newWeaponGameObject = Instantiate(weaponPrefab.gameObject, weaponSlot.WeaponSlotObject.transform);
+        GameObject newWeaponGameObject = Instantiate(weaponPrefab.gameObject, weaponGroup.WeaponGroupObject.transform);
         newWeaponGameObject.TryGetComponent(out Weapon weapon);
         
-        // Get the relevant components and set relevant data in the weapon slot
+        // Get the relevant components and set relevant data in the weapon group
         weapon.transform.SetAsFirstSibling();
-        weaponSlot.CurrentWeapon = weapon;
-        weaponSlot.CurrentWeaponPrefab = weaponPrefab;
-        weaponSlot.WeaponSlotCurrentAimType = weaponSlot.CurrentWeapon.weaponScriptableObject.aimType;
+        weaponGroup.CurrentWeapon = weapon;
+        weaponGroup.CurrentWeaponPrefab = weaponPrefab;
+
+        weaponGroup.CurrentWeapon.weaponScriptableObject.weaponOwner = gameObject;
         
-        if (weapon.weaponScriptableObject.weaponAimpointIcon)
+        foreach (WeaponPart weaponPart in weapon.weaponScriptableObject.WeaponParts)
         {
-            weapon.worldAimpointInstance = Instantiate(weapon.weaponScriptableObject.weaponAimpointIcon);
-            weapon.worldAimpointInstance.TryGetComponent(out weapon.worldAimpointInstanceImage);
+            if (!weaponPart.drawAimpoint || !weaponPart.aimpointIcon) continue;
+            
+            weaponPart.worldAimpointInstance = Instantiate(weaponPart.aimpointIcon);
+            weaponPart.worldAimpointInstance.TryGetComponent(out weaponPart.worldAimpointInstanceImage);
         }
             
-        if (!weaponSlot.AimWithAimingSystem) return;
+        if (!weaponGroup.AimWithAimingSystem) return;
         
         // Register the new weapon with the aiming system
         OnRegisterWeaponAiming?.Invoke(gameObject, newWeaponGameObject);
@@ -152,33 +156,43 @@ public class WeaponManager : MonoBehaviour
     
     public void LoadAllExistingWeapons()
     {
-        foreach (WeaponSlot slot in WeaponSlots)
+        foreach (WeaponGroup group in WeaponGroups)
         {
-            Weapon weapon = slot.CurrentWeapon;
+            Weapon weapon = group.CurrentWeapon;
             
             OnRegisterWeaponAiming?.Invoke(gameObject, weapon.gameObject);
             weapon.gameObject.SetActive(true);
-            weapon.worldAimpointInstance.SetActive(true);
+
+            foreach (WeaponPart weaponPart in weapon.weaponScriptableObject.WeaponParts)
+            {
+                if (!weaponPart.drawAimpoint || !weaponPart.worldAimpointInstance) continue;
+                weaponPart.worldAimpointInstance.SetActive(true);
+            }
             weaponsUnloaded = false;
         }
     }
 
     public void UnloadAllWeapons()
     {
-        foreach (WeaponSlot slot in WeaponSlots)
+        foreach (WeaponGroup group in WeaponGroups)
         {
-            Weapon oldWeapon = slot.CurrentWeapon;
+            Weapon oldWeapon = group.CurrentWeapon;
             
             OnUnregisterWeaponAiming?.Invoke(gameObject, oldWeapon.gameObject);
-            slot.CurrentWeapon.ReleaseTrigger(gameObject);
+            group.CurrentWeapon.ReleaseTrigger(gameObject);
             
             oldWeapon.gameObject.transform.DOKill();
             oldWeapon.gameObject.SetActive(false);
         
-            oldWeapon.worldAimpointInstance.transform.DOKill();
-            oldWeapon.worldAimpointInstance.SetActive(false);
-        
-            OnCleanupTargetLocks?.Invoke(oldWeapon);
+            foreach (WeaponPart weaponPart in oldWeapon.weaponScriptableObject.WeaponParts)
+            {
+                OnCleanupTargetLocks?.Invoke(weaponPart);
+                
+                if (!weaponPart.drawAimpoint || !weaponPart.worldAimpointInstance) continue;
+                weaponPart.worldAimpointInstance.transform.DOKill();
+                weaponPart.worldAimpointInstance.SetActive(false);
+            }
+            
             // remove all target
             weaponsUnloaded = true;
         }
@@ -190,19 +204,19 @@ public class WeaponManager : MonoBehaviour
     {
         if (validationObject != gameObject) return;
         
-        foreach (WeaponSlot weaponSlot in weaponSlots)
+        foreach (WeaponGroup weaponGroup in weaponGroups)
         {
-            if (weaponSlot.WeaponPrefabs.IsNullOrEmpty()) continue;
+            if (weaponGroup.WeaponPrefabs.IsNullOrEmpty()) continue;
             
-            /*if (weaponSlot.Action)
+            /*if (weaponGroup.Action)
             {
-                if (weaponSlot.Action.ToInputAction() != action) continue;
+                if (weaponGroup.Action.ToInputAction() != action) continue;
             }*/
 
-            if (weaponSlot.SwappingWeapon) return;
-            if (weaponSlot.SlotOnCooldown) return;
-                    
-            weaponSlot.CurrentWeapon.ProcessWeaponAction(gameObject, action, pressOrRelease);
+            if (weaponGroup.SwappingWeapon) return;
+            if (weaponGroup.WeaponGroupOnCooldown) return;
+            
+            weaponGroup.CurrentWeapon.ProcessWeaponAction(gameObject, action, pressOrRelease);
         }
     }
 
@@ -210,36 +224,36 @@ public class WeaponManager : MonoBehaviour
     {
         if (validationObject != gameObject) return;
         
-        foreach (WeaponSlot weaponSlot in weaponSlots)
+        foreach (WeaponGroup weaponGroup in weaponGroups)
         {
-            if (weaponSlot.WeaponPrefabs.IsNullOrEmpty()) continue;
+            if (weaponGroup.WeaponPrefabs.IsNullOrEmpty()) continue;
 
-            if (weaponSlot.SwappingWeapon) return;
-            if (weaponSlot.SlotOnCooldown) return;
+            if (weaponGroup.SwappingWeapon) return;
+            if (weaponGroup.WeaponGroupOnCooldown) return;
             
-            weaponSlot.CurrentWeapon.ProcessWeaponReloadAction(gameObject, action);
+            weaponGroup.CurrentWeapon.ProcessWeaponReloadAction(gameObject, action);
         }
     }
 
-    private async void BeginWeaponSwap(GameObject validationObject, string weaponSlotName, int weaponIndex)
+    private async void BeginWeaponSwap(GameObject validationObject, string weaponGroupName, int weaponIndex)
     {
         if (validationObject != gameObject) return;
-        // Select the weapon slot of interest
-        WeaponSlot weaponSlot = FindWeaponSlotByName(weaponSlotName);
-        if (weaponSlot == null) return;
+        // Select the weapon group of interest
+        WeaponGroup weaponGroup = FindWeaponGroupByName(weaponGroupName);
+        if (weaponGroup == null) return;
         
-        weaponSlot.WeaponSlotSwapCTS?.Cancel();
+        weaponGroup.WeaponGroupSwapCTS?.Cancel();
         
-        weaponSlot.WeaponSlotSwapCTS = new CancellationTokenSource();
-        weaponSwapTask = SwapWeapons(weaponSlot.WeaponSlotSwapCTS.Token, validationObject, weaponSlot, weaponIndex);
+        weaponGroup.WeaponGroupSwapCTS = new CancellationTokenSource();
+        weaponSwapTask = SwapWeapons(weaponGroup.WeaponGroupSwapCTS.Token, validationObject, weaponGroup, weaponIndex);
     }
     
-    private void BeginWeaponCycle(GameObject validationObject, string weaponSlotName, int direction)
+    private void BeginWeaponCycle(GameObject validationObject, string weaponGroupName, int direction)
     {
         if (validationObject != gameObject) return;
-        // Select the weapon slot of interest
-        WeaponSlot weaponSlot = FindWeaponSlotByName(weaponSlotName);
-        if (weaponSlot == null) return;
+        // Select the weapon group of interest
+        WeaponGroup weaponGroup = FindWeaponGroupByName(weaponGroupName);
+        if (weaponGroup == null) return;
 
         int weaponIndex = 0;
         
@@ -249,13 +263,13 @@ public class WeaponManager : MonoBehaviour
             case -1:
                 // If we find the lower end of the array, wrap around to the top
                 // Otherwise, swap to the spell below the current spell
-                if (weaponSlot.WeaponPrefabs.IndexOf(weaponSlot.CurrentWeaponPrefab) - 1 < 0)
+                if (weaponGroup.WeaponPrefabs.IndexOf(weaponGroup.CurrentWeaponPrefab) - 1 < 0)
                 {
-                    weaponIndex = weaponSlot.WeaponPrefabs.Count - 1;
+                    weaponIndex = weaponGroup.WeaponPrefabs.Count - 1;
                 }
                 else
                 {
-                    weaponIndex = weaponSlot.WeaponPrefabs.IndexOf(weaponSlot.CurrentWeaponPrefab) - 1;
+                    weaponIndex = weaponGroup.WeaponPrefabs.IndexOf(weaponGroup.CurrentWeaponPrefab) - 1;
                 }
                 break;
             
@@ -263,41 +277,41 @@ public class WeaponManager : MonoBehaviour
             case 1:
                 // If we find the upper end of the array, wrap around to the bottom
                 // Otherwise, swap to the spell above the current spell
-                if (weaponSlot.WeaponPrefabs.IndexOf(weaponSlot.CurrentWeaponPrefab) + 1 >= weaponSlot.WeaponPrefabs.Count)
+                if (weaponGroup.WeaponPrefabs.IndexOf(weaponGroup.CurrentWeaponPrefab) + 1 >= weaponGroup.WeaponPrefabs.Count)
                 {
                     weaponIndex = 0;
                 }
                 else
                 {
-                    weaponIndex = weaponSlot.WeaponPrefabs.IndexOf(weaponSlot.CurrentWeaponPrefab) + 1;
+                    weaponIndex = weaponGroup.WeaponPrefabs.IndexOf(weaponGroup.CurrentWeaponPrefab) + 1;
                 }
                 break;
         }
         
-        weaponSlot.WeaponSlotSwapCTS?.Cancel();
+        weaponGroup.WeaponGroupSwapCTS?.Cancel();
         
-        weaponSlot.WeaponSlotSwapCTS = new CancellationTokenSource();
-        weaponSwapTask = SwapWeapons(weaponSlot.WeaponSlotSwapCTS.Token, validationObject, weaponSlot, weaponIndex);
+        weaponGroup.WeaponGroupSwapCTS = new CancellationTokenSource();
+        weaponSwapTask = SwapWeapons(weaponGroup.WeaponGroupSwapCTS.Token, validationObject, weaponGroup, weaponIndex);
     }
 
-    private async Task SwapWeapons(CancellationToken ct, GameObject validationObject, WeaponSlot weaponSlot, int weaponIndex)
+    private async Task SwapWeapons(CancellationToken ct, GameObject validationObject, WeaponGroup weaponGroup, int weaponIndex)
     {
         if (validationObject != gameObject) return;
-        if (weaponSlot == null) return;
-        if (!weaponSlot.WeaponPrefabs[weaponIndex]) return;
+        if (weaponGroup == null) return;
+        if (!weaponGroup.WeaponPrefabs[weaponIndex]) return;
         float oldWeaponUnequipTime = 0;
         
         // Get the old weapon and unregister it from the aiming system
-        Weapon oldWeapon = weaponSlot.CurrentWeapon;
+        Weapon oldWeapon = weaponGroup.CurrentWeapon;
         
         if (oldWeapon)
         {
             OnUnregisterWeaponAiming?.Invoke(gameObject, oldWeapon.gameObject);
-            weaponSlot.CurrentWeapon.ReleaseTrigger(gameObject);
+            weaponGroup.CurrentWeapon.ReleaseTrigger(gameObject);
         }
         
         // Prevent aiming and shooting until we have swapped weapons
-        weaponSlot.SwappingWeapon = true;
+        weaponGroup.SwappingWeapon = true;
         OnSetAimingAllowed?.Invoke(false);
         
         // todo save the old weapon!!
@@ -306,28 +320,33 @@ public class WeaponManager : MonoBehaviour
         {
             oldWeapon.gameObject.transform.DOKill();
             Destroy(oldWeapon.gameObject);
+            
+            foreach (WeaponPart weaponPart in oldWeapon.weaponScriptableObject.WeaponParts)
+            {
+                OnCleanupTargetLocks?.Invoke(weaponPart);
+                
+                if (!weaponPart.drawAimpoint || !weaponPart.worldAimpointInstance) continue;
+                weaponPart.worldAimpointInstance.transform.DOKill();
+                Destroy(weaponPart.worldAimpointInstance);
+            }
         
-            oldWeapon.worldAimpointInstance.transform.DOKill();
-            Destroy(oldWeapon.worldAimpointInstance);
-        
-            OnCleanupTargetLocks?.Invoke(oldWeapon);
             // remove all target
 
             oldWeaponUnequipTime = oldWeapon.weaponScriptableObject.weaponUnequipTime;
         }
         
-        SetupAndInstantiateWeapon(weaponSlot, weaponSlot.WeaponPrefabs[(int)weaponIndex]);
+        SetupAndInstantiateWeapon(weaponGroup, weaponGroup.WeaponPrefabs[(int)weaponIndex]);
         
-        if (weaponSlot.name == "Spells")
+        if (weaponGroup.name == "Spells")
         {
-            OnCurrentSpellChange?.Invoke(weaponSlot.CurrentWeapon.weaponScriptableObject);
+            OnCurrentSpellChange?.Invoke(weaponGroup.CurrentWeapon.weaponScriptableObject);
         }
         
         // Allow aiming and shooting again after a delay
-        await MouseTools.AwaitableTimer(oldWeaponUnequipTime + weaponSlot.CurrentWeapon.weaponScriptableObject.weaponEquipTime);
+        await MouseTools.AwaitableTimer(oldWeaponUnequipTime + weaponGroup.CurrentWeapon.weaponScriptableObject.weaponEquipTime);
         if (ct.IsCancellationRequested) return;
         
-        weaponSlot.SwappingWeapon = false;
+        weaponGroup.SwappingWeapon = false;
         OnSetAimingAllowed?.Invoke(true);
     }
     
@@ -338,11 +357,11 @@ public class WeaponManager : MonoBehaviour
         globalCooldownTask = Cooldown(globalCooldownCTS.Token, allWeaponsOnGlobalCooldown, cooldown);
     }
     
-    private void BeginWeaponSlotGlobalCooldown(GameObject validationObject, WeaponSlot weaponSlot, float cooldown)
+    private void BeginWeaponGroupGlobalCooldown(GameObject validationObject, WeaponGroup weaponGroup, float cooldown)
     {
-        weaponSlotCooldownCTS?.Cancel();
-        weaponSlotCooldownCTS = new CancellationTokenSource();
-        weaponSlotCooldownTask = Cooldown(globalCooldownCTS.Token, weaponSlot.SlotOnCooldown, cooldown);
+        weaponGroupCooldownCTS?.Cancel();
+        weaponGroupCooldownCTS = new CancellationTokenSource();
+        weaponGroupCooldownTask = Cooldown(globalCooldownCTS.Token, weaponGroup.WeaponGroupOnCooldown, cooldown);
     }
 
     private async Task Cooldown(CancellationToken ct, bool boolToManage, float cooldown)
@@ -358,79 +377,79 @@ public class WeaponManager : MonoBehaviour
         Debug.Log("unlocked!");
     }
 
-    public WeaponSlot FindWeaponSlotByName(string name)
+    public WeaponGroup FindWeaponGroupByName(string name)
     {
-        foreach (WeaponSlot slot in weaponSlots)
+        foreach (WeaponGroup group in weaponGroups)
         {
-            if (slot.name != name) continue;
-            return slot;
+            if (group.name != name) continue;
+            return group;
         }
         
         return null;
     }
     
-    private void AddWeaponToSlot(GameObject validationObject, string weaponSlotName, Weapon weaponToAdd, int index = -1, bool swapToNewWeapon = false)
+    private void AddWeaponToGroup(GameObject validationObject, string weaponGroupName, Weapon weaponToAdd, int index = -1, bool swapToNewWeapon = false)
     {
         if (validationObject != gameObject) return;
-        WeaponSlot weaponSlot = FindWeaponSlotByName(weaponSlotName);
+        WeaponGroup weaponGroup = FindWeaponGroupByName(weaponGroupName);
         
-        if (weaponSlot.WeaponPrefabs.Count >= weaponSlot.MaxWeaponsInSlot) return;
+        if (weaponGroup.WeaponPrefabs.Count >= weaponGroup.MaxWeaponsInGroup) return;
         
         if (index != -1)
         {
-            weaponSlot.WeaponPrefabs.Insert(index, weaponToAdd);
+            weaponGroup.WeaponPrefabs.Insert(index, weaponToAdd);
             return;
         }
         
-        weaponSlot.WeaponPrefabs.Add(weaponToAdd);
+        weaponGroup.WeaponPrefabs.Add(weaponToAdd);
         
         if (!swapToNewWeapon) return;
-        BeginWeaponSwap(gameObject, weaponSlotName, weaponSlot.WeaponPrefabs.IndexOf(weaponToAdd));
+        BeginWeaponSwap(gameObject, weaponGroupName, weaponGroup.WeaponPrefabs.IndexOf(weaponToAdd));
     }
     
-    private void RemoveWeaponFromSlot(GameObject validationObject, string weaponSlotName, Weapon targetWeapon, int index = -1)
+    private void RemoveWeaponFromGroup(GameObject validationObject, string weaponGroupName, Weapon targetWeapon, int index = -1)
     {
         if (validationObject != gameObject) return;
         Weapon weaponToRemove = null;
-        WeaponSlot weaponSlot = FindWeaponSlotByName(weaponSlotName);
+        WeaponGroup weaponGroup = FindWeaponGroupByName(weaponGroupName);
 
         // if an index is specified
         if (index != -1)
         {
-            weaponToRemove = weaponSlot.WeaponPrefabs[index];
-            weaponSlot.WeaponPrefabs.RemoveAt(index);
+            weaponToRemove = weaponGroup.WeaponPrefabs[index];
+            weaponGroup.WeaponPrefabs.RemoveAt(index);
 
-            if (weaponSlot.CurrentWeapon == weaponToRemove)
+            if (weaponGroup.CurrentWeapon == weaponToRemove)
             {
-                BeginWeaponCycle(gameObject, weaponSlotName, 1);
+                BeginWeaponCycle(gameObject, weaponGroupName, 1);
             }
             
             return;
         }
         
         // for now, this removes the first matching weapon - unsure if this works
-        foreach (Weapon weapon in weaponSlot.WeaponPrefabs)
+        foreach (Weapon weapon in weaponGroup.WeaponPrefabs)
         {
             if (weapon.weaponScriptableObject.weaponName != targetWeapon.weaponScriptableObject.weaponName) continue;
             weaponToRemove = weapon;
         }
         
-        weaponSlot.WeaponPrefabs.Remove(weaponToRemove);
+        weaponGroup.WeaponPrefabs.Remove(weaponToRemove);
 
-        if (weaponSlot.CurrentWeapon == weaponToRemove)
+        if (weaponGroup.CurrentWeapon == weaponToRemove)
         {
-            BeginWeaponCycle(gameObject, weaponSlotName, 1);
+            BeginWeaponCycle(gameObject, weaponGroupName, 1);
         }
     }
     
-    private void ReplaceTargetWeapon(GameObject validationObject, string weaponSlotName, Weapon replacement, Weapon target)
+    private void ReplaceTargetWeapon(GameObject validationObject, string weaponGroupName, Weapon replacement, Weapon target)
     {
         /*if (validationObject != gameObject) return;
-        WeaponSlot weaponSlot = FindWeaponSlotByName(weaponSlotName);
+        WeaponGroup weaponGroup = FindWeaponGroupByName(weaponGroupName);
         Weapon weaponToRemove;
         
         // for now, this removes the first matching weapon - unsure if this works
-        foreach (Weapon weapon in weaponSlot.Weapons)
+        foreach (Weapon weapon in weaponGroup.Weapons)
         {
             if (weapon.weaponScriptableObject.weaponComponent.name != target.weaponScriptableObject.weaponComponent.name) continue;
             weaponToRemove = weapon;
@@ -439,18 +458,18 @@ public class WeaponManager : MonoBehaviour
         weaponToRemove*/
     }
     
-    private void ReplaceWeaponInSlot(GameObject validationObject, string weaponSlotName, Weapon replacement, int index)
+    private void ReplaceWeaponInGroup(GameObject validationObject, string weaponGroupName, Weapon replacement, int index)
     {
         if (validationObject != gameObject) return;
         Weapon weaponToRemove = null;
-        WeaponSlot weaponSlot = FindWeaponSlotByName(weaponSlotName);
+        WeaponGroup weaponGroup = FindWeaponGroupByName(weaponGroupName);
 
         
-        weaponToRemove = weaponSlot.WeaponPrefabs[index];
-        weaponSlot.WeaponPrefabs.RemoveAt(index);
+        weaponToRemove = weaponGroup.WeaponPrefabs[index];
+        weaponGroup.WeaponPrefabs.RemoveAt(index);
         
-        weaponSlot.WeaponPrefabs.Insert(index, replacement);
+        weaponGroup.WeaponPrefabs.Insert(index, replacement);
         
-        BeginWeaponSwap(gameObject, weaponSlotName, index);
+        BeginWeaponSwap(gameObject, weaponGroupName, index);
     }
 }

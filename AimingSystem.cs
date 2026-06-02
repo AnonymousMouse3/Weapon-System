@@ -22,7 +22,7 @@ public class AimingSystem : MonoBehaviour
     public static event Action OnReportAIAimState;
     public static event Action<GameObject, GameObject> OnTargetLock;
     public static event Action<GameObject, GameObject> OnTargetLost;
-    public static event Action<Weapon, Vector3, float> OnPlaceWorldCrosshair;
+    public static event Action<WeaponScriptableObject, Vector3, float> OnPlaceWorldCrosshair;
     
     [Separator("Runtime")]
     public AIAimState currentAIAimState;
@@ -75,7 +75,7 @@ public class AimingSystem : MonoBehaviour
     
     [SerializeField] private bool aimCharacterInsteadOfWeapon; // temporary
     
-    
+    // put this on the weapon prefab
     public LineRenderer AimLine;
     
     [Separator("Debug")]
@@ -141,25 +141,32 @@ public class AimingSystem : MonoBehaviour
             if (!weaponObject) return;
             
             weaponObject.TryGetComponent(out Weapon weapon);
-            WeaponScriptableObject weaponComponent = weapon.weaponScriptableObject;
-            if (!weapon || !weaponComponent) return;
+            WeaponScriptableObject weaponScriptableObject = weapon.weaponScriptableObject;
+            // if multiple weaponparts use the same firepoint, use only that one, use the first weaponpart's icon
+            // if there are multiple firepoints
             
-            if (AimingAllowed) AimWeapon(weaponObject, weapon, weaponComponent);
+            if (!weapon || !weaponScriptableObject) return;
             
-            PlaceWorldAimpoint(weaponObject, weapon, weaponComponent);
-            
-            switch (weaponComponent.aimType)
+            if (AimingAllowed) AimWeapon(weaponObject, weaponScriptableObject);
+
+
+            foreach (WeaponPart weaponPart in weaponScriptableObject.WeaponParts)
             {
-                case WeaponScriptableObject.WeaponAimType.Crosshair:
-                    break;
+                PlaceWorldAimpoint(weaponPart, weaponScriptableObject);
             
-                case WeaponScriptableObject.WeaponAimType.LockOn:
-                    FindTargetsInAimCone();
-                    LockOnCrosshairClosestTarget(weapon);
-                    break;
+                switch (weaponPart.aimType)
+                {
+                    case WeaponPart.WeaponAimType.Crosshair:
+                        break;
             
-                case WeaponScriptableObject.WeaponAimType.GroundOnly:
-                    break;
+                    case WeaponPart.WeaponAimType.LockOn:
+                        FindTargetsInAimCone();
+                        LockOnCrosshairClosestTarget(weaponPart);
+                        break;
+            
+                    case WeaponPart.WeaponAimType.GroundOnly:
+                        break;
+                }
             }
         }
 
@@ -185,17 +192,10 @@ public class AimingSystem : MonoBehaviour
         Debug.DrawRay(mainCamera.transform.position, mainCamera.transform.forward * maxAimDistance, Color.blue, 0.01f);
     }
 
-    private void PlaceWorldAimpoint(GameObject weaponObject, Weapon weapon, WeaponScriptableObject weaponComponent)
+    private void PlaceWorldAimpoint(WeaponPart weaponPart, WeaponScriptableObject weaponScriptableObject)
     {
-        // consider multiple firepoints
-        if (weapon.firePoints.IsNullOrEmpty())
-        {
-            Debug.Log("Weapon has no fire points. Assign one or multiple in the inspector and determine if each should use a separate crosshair");
-            return;
-        }
-        
-        Vector3 firePointPos = weapon.firePoints[0].transform.position;
-        Vector3 firePointForward = weapon.firePoints[0].transform.forward;
+        Vector3 firePointPos = weaponPart.firePoint.transform.position;
+        Vector3 firePointForward = weaponPart.firePoint.transform.forward;
         
         // This aimpoint is used to show the physical aim direction of the weapon, including any obstacles that may be blocking it
         Ray ray = new Ray(firePointPos, firePointForward);
@@ -208,9 +208,9 @@ public class AimingSystem : MonoBehaviour
             indicatorPos = ray.GetPoint(maxAimDistance);
         }
 
-        if (weapon.worldAimpointInstance)
+        if (weaponPart.worldAimpointInstance)
         {
-            OnPlaceWorldCrosshair?.Invoke(weapon, mainCamera.WorldToScreenPoint(indicatorPos), 0.025f);
+            OnPlaceWorldCrosshair?.Invoke(weaponScriptableObject, mainCamera.WorldToScreenPoint(indicatorPos), 0.025f);
         }
 
         // set aim line positions to firepoint and aimpoint, if we should display it - set to zero if otherwise
@@ -228,7 +228,7 @@ public class AimingSystem : MonoBehaviour
         Debug.DrawRay(firePointPos, firePointForward * maxAimDistance, Color.green, 0.01f);
     }
     
-    private void AimWeapon(GameObject weaponObject, Weapon weapon, WeaponScriptableObject weaponComponent)
+    private void AimWeapon(GameObject weaponObject, WeaponScriptableObject weaponScriptableObject)
     {
         GameObject localTarget = null;
         switch (currentAIAimTargetingMode)
@@ -242,13 +242,13 @@ public class AimingSystem : MonoBehaviour
         }
         
         if (!localTarget) return;
-        if (weapon.weaponTween == null)
+        if (weaponScriptableObject.weaponTween == null)
         {
             // make this an actual calc from ergo and weight etc
-            weapon.weaponTween = weaponObject.transform.DOLookAt(localTarget.transform.position, weaponComponent.weaponWeight).SetAutoKill(false); // this is causing memory leak maybe lol
+            weaponScriptableObject.weaponTween = weaponObject.transform.DOLookAt(localTarget.transform.position, weaponScriptableObject.weaponWeight).SetAutoKill(false); // this is causing memory leak maybe lol
         }
-        weapon.weaponTween.Kill();
-        weapon.weaponTween = weaponObject.transform.DOLookAt(localTarget.transform.position, weaponComponent.weaponWeight);
+        weaponScriptableObject.weaponTween.Kill();
+        weaponScriptableObject.weaponTween = weaponObject.transform.DOLookAt(localTarget.transform.position, weaponScriptableObject.weaponWeight);
     }
 
     private void FindTargetsInAimCone()
@@ -277,46 +277,46 @@ public class AimingSystem : MonoBehaviour
         }
     }
 
-    private void LockOnCrosshairClosestTarget(Weapon weapon)
+    private void LockOnCrosshairClosestTarget(WeaponPart weaponPart)
     {
-        GameObject previousTarget = weapon.target;
-        weapon.target = null;
+        GameObject previousTarget = weaponPart.target;
+        weaponPart.target = null;
         Vector3 cameraForward = mainCamera.transform.forward;
         
         foreach (Collider target in targetsInCone)
         {
             if (!target) continue;
-            if (!weapon.target)
+            if (!weaponPart.target)
             {
-                weapon.target = target.gameObject;
+                weaponPart.target = target.gameObject;
             }
             
             Vector3 directionToTarget = target.transform.position - mainCamera.transform.position;
-            Vector3 directionToClosestTarget = weapon.target.transform.position - mainCamera.transform.position;
+            Vector3 directionToClosestTarget = weaponPart.target.transform.position - mainCamera.transform.position;
             
             if (Vector3.Angle(cameraForward, directionToTarget) > Vector3.Angle(cameraForward, directionToClosestTarget)) continue;
-            weapon.target = target.gameObject;
+            weaponPart.target = target.gameObject;
         }
         
-        if (weapon.target == previousTarget) return;
+        if (weaponPart.target == previousTarget) return;
 
-        TargetableObject.onDisableCanvas?.Invoke(gameObject, previousTarget, weapon.weaponScriptableObject.weaponLockOnIcon);
+        TargetableObject.onDisableCanvas?.Invoke(gameObject, previousTarget, weaponPart.targetIcon);
         OnTargetLost?.Invoke(gameObject, previousTarget);
         
-        if (!weapon.target) return;
-        TargetableObject.onEnableCanvas?.Invoke(gameObject, weapon.target.gameObject, weapon.weaponScriptableObject.weaponLockOnIcon);
-        OnTargetLock?.Invoke(gameObject, weapon.target.gameObject);
+        if (!weaponPart.target) return;
+        TargetableObject.onEnableCanvas?.Invoke(gameObject, weaponPart.target.gameObject, weaponPart.targetIcon);
+        OnTargetLock?.Invoke(gameObject, weaponPart.target.gameObject);
     }
 
-    public void CleanupTargetLocks(Weapon weapon)
+    public void CleanupTargetLocks(WeaponPart weaponPart)
     {
-        GameObject previousTarget = weapon.target;
+        GameObject previousTarget = weaponPart.target;
         
-        TargetableObject.onDisableCanvas?.Invoke(gameObject, previousTarget, weapon.weaponScriptableObject.weaponLockOnIcon);
+        TargetableObject.onDisableCanvas?.Invoke(gameObject, previousTarget, weaponPart.targetIcon);
         OnTargetLost?.Invoke(gameObject, previousTarget);
     }
     
-    private void CheckAimStatus(Weapon weapon)
+    private void CheckAimStatus(WeaponPart weaponPart)
     {
         // check if tween is within X distance to completion
         
@@ -329,7 +329,7 @@ public class AimingSystem : MonoBehaviour
             case AIAimTargetingMode.AimAtPoint:
                 break;
             case AIAimTargetingMode.AimAtGameObject:
-                Ray aimRay = new Ray(weapon.firePoints[0].transform.position, weapon.firePoints[0].transform.forward);
+                Ray aimRay = new Ray(weaponPart.firePoint.transform.position, weaponPart.firePoint.transform.forward);
                 Physics.Raycast(aimRay, out RaycastHit aimHit, maxAimDistance);
                 
                 currentAIAimState = aimHit.collider.gameObject == targetCharacter ? AIAimState.Aimed : AIAimState.Aiming;
@@ -344,13 +344,13 @@ public class AimingSystem : MonoBehaviour
         // some smart checks such as moving object going to obscure target before its hit, target moving out of sight (reduces chance to hit)
     }
 
-    public async Task<bool> WaitUntilAimed(Weapon weapon, float maxWaitTime)
+    public async Task<bool> WaitUntilAimed(WeaponPart weaponPart, float maxWaitTime)
     {
         for (float i = 0; i < maxWaitTime * 100; i += maxWaitTime / 100f)
         {
             await MouseTools.AwaitableTimer(maxWaitTime / 100f);
             
-            CheckAimStatus(weapon);
+            CheckAimStatus(weaponPart);
             if (currentAIAimState == AIAimState.Aimed) return true;
         }
         

@@ -2,10 +2,53 @@ using System;
 using System.Collections.Generic;
 using MyBox;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.Serialization;
 using UnityEngine.UI;
 
 // Credit to DeadCows' MyBox for additional editor attributes - https://github.com/Deadcows/MyBox/
+
+[Serializable]
+public class WeaponAction
+{
+    [ReadOnly] public bool ActionComplete;
+    public string ActionName;
+    public InputActionReference InputActionListenedTo;
+    public List<WeaponActionCondition> ActionConditions;
+    public List<WeaponActionsToTake> ActionsToTake;
+    [SerializeReference] public WeaponPart weaponPart;
+    
+    public enum WeaponActionsToTake
+    {
+        ShootWeaponPart
+    }
+}
+
+[Serializable]
+public class WeaponActionCondition
+{
+    [ReadOnly] public bool Fulfilled;
+    public WeaponActionConditionType ConditionType;
+
+    [ConditionalField(nameof(ConditionType), false, WeaponActionConditionType.ActionComplete,
+        WeaponActionConditionType.ActionIncomplete)]
+    public WeaponAction ActionToMonitor; // TEMP - this will be cleaner in future, remake with UI toolkit
+
+    [ConditionalField(nameof(ConditionType), false, WeaponActionConditionType.AnyProjectileActive)]
+    public WeaponPart weaponPart;
+
+    [ConditionalField(nameof(ConditionType), false, WeaponActionConditionType.ChargedForTime)]
+    public float ChargeTime;
+
+    public enum WeaponActionConditionType
+    {
+        Nothing,
+        AnyProjectileActive,
+        ChargedForTime,
+        ActionComplete,
+        ActionIncomplete,
+    }
+}
 
 [Serializable]
 public class DamageComponent

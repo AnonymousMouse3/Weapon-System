@@ -31,33 +31,9 @@ public class Weapon : MonoBehaviour
     public static event Action<WeaponPart, float> OnAttackSpeedModifierChange;
     public static event Action<GameObject, WeaponPart> OnSpellCast;
     public static event Action<GameObject, WeaponPart> OnAttemptSpellCast;
-
-    [SerializeField, ReadOnly] public Tween weaponTween;
-    [SerializeField, ReadOnly] public GameObject worldAimpointInstance;
-    [SerializeField, ReadOnly] public Image worldAimpointInstanceImage;
     
-    [SerializeField, ReadOnly] public GameObject target;
-    [SerializeField] public List<GameObject> firePoints;
-    [SerializeField] public bool cycleFirePoints;
-    
-    [ReadOnly] public GameObject WeaponOwner 
-    {
-        get => weaponOwner;
-        set => weaponOwner = value;
-    }
-    [SerializeField, ReadOnly] private GameObject weaponOwner;
-    
-    public WeaponScriptableObject WeaponScriptableObject
-    {
-        get => weaponScriptableObject;
-        set => weaponScriptableObject  = value;
-    }
-    [SerializeField, DisplayInspector] public WeaponScriptableObject weaponScriptableObject;
-    [SerializeField] private bool debugWeapon;
-    
-    #if SPELL_SYSTEM
-    [SerializeField] private SpellManager spellManager;
-    #endif
+    public List<GameObject> prefabFirePoints;
+    [DisplayInspector] public WeaponScriptableObject weaponScriptableObject;
 
     private void OnEnable()
     {
@@ -97,34 +73,15 @@ public class Weapon : MonoBehaviour
         }
 
         weaponScriptableObject.WeaponParts = newWeaponParts;
-
-        weaponOwner = transform.parent.transform.parent.gameObject;
         
         #if SPELL_SYSTEM
-        weaponOwner.TryGetComponent(out spellManager);
+        weaponScriptableObject.weaponOwner.TryGetComponent(out weaponScriptableObject.spellManager);
         #endif
 
         foreach (WeaponPart weaponPart in weaponScriptableObject.WeaponParts)
         {
-            weaponPart.parentWeaponScriptableObject = weaponScriptableObject;
-            
-            //replace with an actual check on start
-            weaponPart.firingState = WeaponPart.FiringState.ReadyToFire;
-            weaponPart.reloadState = WeaponPart.ReloadState.ReadyToFire;
-            
-            weaponPart.cycleTask = Task.CompletedTask;
-            weaponPart.reloadTask = Task.CompletedTask;
-            
-            weaponPart.fireInterval = 60 / weaponPart.fireRate;
-
-            weaponPart.baseFireRate = weaponPart.fireInterval;
-
-            weaponPart.isChamberLoaded = true; // change dynamically
-            weaponPart.currentMagazineAmmo = weaponPart.magazineCapacity;
-            weaponPart.currentReserveAmmo = weaponPart.maxReserveAmmo; // change dynamically in future, obviously
-            
-            if (weaponPart.projectilePrefabs.IsNullOrEmpty()) { Debug.Log("Weapon part has no projectile. Assign one in the inspector."); continue; }
-            weaponPart.currentProjectile = weaponPart.projectilePrefabs[0]; // change/remember the default during gameplay? hardcoded for now
+            weaponPart.firePoint = prefabFirePoints[weaponScriptableObject.WeaponParts.IndexOf(weaponPart)];
+            weaponPart.SetupWeaponPart(weaponScriptableObject);
         }
 
         foreach (WeaponAction weaponAction in weaponScriptableObject.WeaponActions)
@@ -147,10 +104,10 @@ public class Weapon : MonoBehaviour
 
     public void ShootWeaponDirectly(GameObject validationObject, bool pressOrRelease)
     {
-        if (validationObject != weaponOwner) return;
+        if (validationObject != weaponScriptableObject.weaponOwner) return;
 
         // shoots the first weapon part directly - use for simple weapons for now, expand in future
-        WeaponPart currentWeaponPart = WeaponScriptableObject.WeaponParts[0];
+        WeaponPart currentWeaponPart = weaponScriptableObject.WeaponParts[0];
         if (!currentWeaponPart) return;
         
         if (pressOrRelease)
@@ -168,13 +125,14 @@ public class Weapon : MonoBehaviour
 
     public void ProcessWeaponAction(GameObject validationObject, InputAction action, bool pressOrRelease)
     {
-        if (validationObject != weaponOwner) return;
+        if (validationObject != weaponScriptableObject.weaponOwner) return;
 
         WeaponPart currentWeaponPart = null;
         WeaponAction currentWeaponAction = null;
 
         foreach (WeaponAction weaponAction in weaponScriptableObject.WeaponActions)
         {
+            if (!weaponAction.InputActionListenedTo) continue;
             if (weaponAction.InputActionListenedTo.action != action) continue;
             
             currentWeaponPart = CheckWeaponActionConditions(weaponAction);
@@ -200,13 +158,13 @@ public class Weapon : MonoBehaviour
         foreach (WeaponPart weaponPart in weaponScriptableObject.WeaponParts)
         {
             if (weaponPart.reloadAction.action != action) continue;
-            StartReload(weaponPart, weaponOwner);
+            StartReload(weaponPart, weaponScriptableObject.weaponOwner);
         }
     }
 
     public void ReleaseTrigger(GameObject validationObject)
     {
-        if (validationObject != weaponOwner) return;
+        if (validationObject != weaponScriptableObject.weaponOwner) return;
         
         foreach (WeaponPart weaponPart in weaponScriptableObject.WeaponParts)
         {
@@ -353,17 +311,14 @@ public class Weapon : MonoBehaviour
             }
         }
         
-        if (weaponPart.requiresTarget && !target) { CouldNotFire("no target"); return; }
+        if (weaponPart.requiresTarget && !weaponPart.target) { CouldNotFire("no target"); return; }
 
         
         #if SPELL_SYSTEM
         if (weaponPart.isSpell)
         {
             // use spell manager to run mana checks, etc
-            
-            
-            if (!spellManager.SpellChecks(weaponOwner, weaponPart)) { CouldNotFire("one or more spell checks failed"); return; }
-            
+            if (!weaponScriptableObject.spellManager.SpellChecks(weaponScriptableObject.weaponOwner, weaponPart)) { CouldNotFire("one or more spell checks failed"); return; }
         }
         #endif
         FireWeapon(weaponPart);
@@ -374,20 +329,22 @@ public class Weapon : MonoBehaviour
         // play empty weapon click, etc.
         if (warning)
         {
-            if (debugWeapon) Debug.LogWarning(reason);
+            if (weaponScriptableObject.debugWeapon) Debug.LogWarning(reason);
             return;
         }
         
-        if (debugWeapon) Debug.Log(reason);
+        if (weaponScriptableObject.debugWeapon) Debug.Log(reason);
     }
     
     private void FireWeapon(WeaponPart weaponPart)
     {
-        if (firePoints.IsNullOrEmpty()) return;
-        Transform selectedFirePoint = firePoints[weaponPart.firePointCounter].transform;
+        if (!weaponPart.firePoint) return;
+        
+        // handle this through WeaponActions instead
+        /*Transform selectedFirePoint = firePoints[weaponPart.firePointCounter].transform;
 
         if (cycleFirePoints) weaponPart.firePointCounter++;
-        if (weaponPart.firePointCounter >= firePoints.Count) weaponPart.firePointCounter = 0;
+        if (weaponPart.firePointCounter >= firePoints.Count) weaponPart.firePointCounter = 0;*/
         
         switch (weaponPart.hitscanOrProjectile)
         {
@@ -400,13 +357,13 @@ public class Weapon : MonoBehaviour
                 {
                     for (int i = 0; i < weaponPart.projectilesPerShot; i++)
                     {
-                        SpawnProjectile(weaponPart, weaponPart.currentProjectile, selectedFirePoint);
+                        SpawnProjectile(weaponPart, weaponPart.currentProjectile, weaponPart.firePoint.transform);
                     }
 
                     break;
                 }
                 
-                SpawnProjectile(weaponPart, weaponPart.currentProjectile, selectedFirePoint);
+                SpawnProjectile(weaponPart, weaponPart.currentProjectile, weaponPart.firePoint.transform);
                 break;
         }
         
@@ -416,10 +373,10 @@ public class Weapon : MonoBehaviour
         #if SPELL_SYSTEM
         if (weaponPart.isSpell)
         {
-            OnSpellCast?.Invoke(weaponOwner, weaponPart);
+            OnSpellCast?.Invoke(weaponScriptableObject.weaponOwner, weaponPart);
             
             #if SPELL_SYSTEM
-            spellManager.ConsumeSpellResources(weaponPart);
+            weaponScriptableObject.spellManager.ConsumeSpellResources(weaponPart);
             #endif
             // tell spell manager to consume mana, etc
         }
@@ -518,7 +475,7 @@ public class Weapon : MonoBehaviour
         newProjectileSystem.weaponPartFiredFrom = weaponPart;
         newProjectileSystem.weaponPartFiredFrom.spawnedProjectiles.Add(newProjectile);
         newProjectileSystem.weaponFiredFrom = this;
-        newProjectileSystem.projectileOwner = weaponOwner;
+        newProjectileSystem.projectileOwner = weaponScriptableObject.weaponOwner;
         
         #if SPELL_SYSTEM
         newProjectileSystem.projectileComponent.damageComponent.baseDamage *= 1 + weaponPart.damageModifier;
@@ -537,8 +494,8 @@ public class Weapon : MonoBehaviour
         //newProjectileSystem.SetProjectileTeam(LayerMask.LayerToName(weaponOwner.gameObject.layer));
                 
         if (!weaponPart.passTargetToProjectile) return;
-        weaponOwner.TryGetComponent(out AimingSystem playerAimingSystem);
-        newProjectileSystem.ChangeTrackingTarget(target);
+        weaponScriptableObject.weaponOwner.TryGetComponent(out AimingSystem playerAimingSystem);
+        newProjectileSystem.ChangeTrackingTarget(weaponPart.target);
     }
     
     private void SwitchAmmoType(GameObject validationObject, WeaponPart weaponPart, GameObject newAmmoType)
@@ -560,7 +517,7 @@ public class Weapon : MonoBehaviour
 
     private void StartReload(WeaponPart weaponPart, GameObject validationObject)
     {
-        if (validationObject != weaponOwner) return;
+        if (validationObject != weaponScriptableObject.weaponOwner) return;
         if (!weaponPart.needsReloading) return;
 
         if (weaponPart.hasMagazine)
@@ -634,14 +591,14 @@ public class Weapon : MonoBehaviour
     #if SPELL_SYSTEM
     public void ModifyAttackSpeed(WeaponPart weaponPart, float mod)
     {
-        weaponPart.attackSpeedModifier = mod;
+        weaponPart.fireRateMultiplier = mod;
         OnAttackSpeedModifierChange?.Invoke(weaponPart, mod);
     }
 
     public void OnFireRateChange(WeaponPart weaponPart, float a)
     {
         if (!weaponScriptableObject) return;
-        weaponPart.fireInterval = weaponPart.baseFireRate / (1 + weaponPart.attackSpeedModifier); 
+        weaponPart.fireRateMultiplier += a; 
         //Debug.Log(weaponComponent.fireInterval + " | " + attackSpeedModifier);
     }
 
@@ -653,7 +610,7 @@ public class Weapon : MonoBehaviour
     public void ResetModifiers(WeaponPart weaponPart)
     {
         weaponPart.damageModifier = 0;
-        weaponPart.attackSpeedModifier = 0;
+        weaponPart.fireRateMultiplier = 1;
     }
     #endif
 }

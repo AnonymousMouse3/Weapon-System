@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using DG.Tweening;
 using UnityEngine;
 using MyBox;
 using UnityEngine.InputSystem;
 using UnityEngine.Serialization;
+using UnityEngine.UI;
 
 [Serializable, CreateAssetMenu(fileName = "WeaponScriptableObject", menuName = "Weapon Scriptable Object")]
 // A WeaponObject is a ScriptableObject containing a WeaponComponent (the data structure)
@@ -18,17 +20,31 @@ public class WeaponScriptableObject : ScriptableObject
     // e.g. a gun's chamber can only be loaded if it has one
     // Thus setting hasChamber to false will set chamberLoaded to read only
 
+    [Separator("Runtime")]
+    [ReadOnly] public GameObject weaponOwner;
+    
+    [Separator("Info")]
     [FormerlySerializedAs("name")] public string weaponName;
     [TextArea] public string desc;
     [TextArea] public string altDesc;
     
-    [Separator("Unsorted Settings")]
-    public GameObject weaponCrosshairImage;
-    public GameObject weaponAimpointIcon;
-    public GameObject weaponLockOnIcon;
-    
     [Separator("Technical Settings")]
+    [SerializeReference] public List<WeaponPart> WeaponParts;
     public List<WeaponAction> WeaponActions;
+    
+    #if SPELL_SYSTEM
+    [ReadOnly] public SpellManager spellManager;
+    #endif
+    
+    [Separator("UI Settings")]
+    public GameObject crosshairImage;
+    
+    #if SPELL_SYSTEM
+    public Texture2D spellIcon;
+    public Texture[] spellImages;
+    #endif
+    
+    
     
     [Separator("Handling Settings")]
     public float weaponErgonomics;
@@ -37,83 +53,10 @@ public class WeaponScriptableObject : ScriptableObject
     public float weaponEquipTime;
     public float weaponUnequipTime;
     
-    [SerializeReference] public List<WeaponPart> WeaponParts;
+    [Separator("Debug")]
+    [SerializeField] public bool debugWeapon;
     
-    public WeaponAimType aimType;
-    public enum WeaponAimType
-    {
-        Crosshair,
-        LockOn,
-        GroundOnly
-    }
-    
-    #if SPELL_SYSTEM
-    public Texture2D spellIcon;
-    public Texture[] spellImages;
-    
-    [Separator("Spell Settings")]
-    public SpellSchool spellSchool;
-    
-    public enum SpellSchool
-    {
-        None,
-        Healing,
-        Pyromancy,
-        Ferromancy,
-        Lunar,
-        Cryomancy,
-        Hydromancy,
-        Aero
-    }
-    
-    [ConditionalField(nameof(spellSchool), false, SpellSchool.Pyromancy)] public int embersCost;
-    [ConditionalField(nameof(spellSchool), false, SpellSchool.Ferromancy)] public int swordCost;
-    [ConditionalField(nameof(spellSchool), false, SpellSchool.Lunar)] public int astralAmmoCost;
-    [ConditionalField(nameof(spellSchool), false, SpellSchool.Hydromancy)] public int waterLevelCost;
-    #endif
-}
-
-
-[Serializable]
-public class WeaponAction
-{
-    [ReadOnly] public bool ActionComplete;
-    public string Name;
-    public InputActionReference InputActionListenedTo;
-    public List<WeaponActionCondition> ActionConditions;
-    public List<WeaponActionsToTake> ActionsToTake;
-    [SerializeReference] public WeaponPart weaponPart;
-    
-    public enum WeaponActionsToTake
-    {
-        ShootWeaponPart
-    }
-}
-
-[Serializable]
-public class WeaponActionCondition
-{
-    [ReadOnly] public bool Fulfilled;
-    public WeaponActionConditionType ConditionType;
-
-    [ConditionalField(nameof(ConditionType), false, WeaponActionConditionType.ActionComplete,
-        WeaponActionConditionType.ActionIncomplete)]
-    public WeaponAction ActionToMonitor; // TEMP - this will be cleaner in future, remake with UI toolkit
-
-    [ConditionalField(nameof(ConditionType), false, WeaponActionConditionType.AnyProjectileActive)]
-    public WeaponPart weaponPart;
-
-    [ConditionalField(nameof(ConditionType), false, WeaponActionConditionType.ChargedForTime)]
-    public float ChargeTime;
-
-    public enum WeaponActionConditionType
-    {
-        Nothing,
-        AnyProjectileActive,
-        ChargedForTime,
-        ActionComplete,
-        ActionIncomplete,
-    }
+    public Tween weaponTween;
 }
 
 
