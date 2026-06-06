@@ -12,7 +12,6 @@ using UnityEngine.UI;
 public class WeaponAction
 {
     [ReadOnly] public bool ActionComplete;
-    public string ActionName;
     public InputActionReference InputActionListenedTo;
     public List<WeaponActionCondition> ActionConditions;
     public List<WeaponActionsToTake> ActionsToTake;
@@ -27,11 +26,10 @@ public class WeaponAction
 [Serializable]
 public class WeaponActionCondition
 {
-    [ReadOnly] public bool Fulfilled;
+    [ReadOnly] public bool Fulfilled = false;
     public WeaponActionConditionType ConditionType;
 
-    [ConditionalField(nameof(ConditionType), false, WeaponActionConditionType.ActionComplete,
-        WeaponActionConditionType.ActionIncomplete)]
+    [ConditionalField(nameof(ConditionType), false, WeaponActionConditionType.CheckOtherActionIsComplete, WeaponActionConditionType.CheckOtherActionIsIncomplete)]
     public WeaponAction ActionToMonitor; // TEMP - this will be cleaner in future, remake with UI toolkit
 
     [ConditionalField(nameof(ConditionType), false, WeaponActionConditionType.AnyProjectileActive)]
@@ -40,13 +38,16 @@ public class WeaponActionCondition
     [ConditionalField(nameof(ConditionType), false, WeaponActionConditionType.ChargedForTime)]
     public float ChargeTime;
 
+    [ConditionalField(nameof(ConditionType), false, WeaponActionConditionType.ChargedForTime)]
+    public bool AutoRelease;
+
     public enum WeaponActionConditionType
     {
         Nothing,
         AnyProjectileActive,
         ChargedForTime,
-        ActionComplete,
-        ActionIncomplete,
+        CheckOtherActionIsComplete,
+        CheckOtherActionIsIncomplete,
     }
 }
 

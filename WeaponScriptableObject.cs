@@ -30,7 +30,7 @@ public class WeaponScriptableObject : ScriptableObject
     
     [Separator("Technical Settings")]
     [SerializeReference] public List<WeaponPart> WeaponParts;
-    public List<WeaponAction> WeaponActions;
+    [FormerlySerializedAs("WeaponActions")] public List<WeaponAction> WeaponFunctions;
     
     #if SPELL_SYSTEM
     [ReadOnly] public SpellManager spellManager;

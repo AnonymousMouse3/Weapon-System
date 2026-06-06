@@ -331,6 +331,11 @@ public class ProjectileSystem : MonoBehaviour
             foreach (GameObject child in dontDestroyLingeringEffects)
             {
                 child.transform.parent = null;
+
+                if (child.TryGetComponent(out TrailRenderer trailRenderer))
+                {
+                    
+                }
                 
                 if (!child.TryGetComponent(out ParticleSystem ps)) continue;
                 var main = ps.main;

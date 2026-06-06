@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using MyBox;
@@ -7,6 +8,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Serialization;
 using UnityEngine.UI;
+using Debug = UnityEngine.Debug;
 
 [Serializable, CreateAssetMenu(fileName = "WeaponPart", menuName = "Weapon Part")]
 public class WeaponPart : ScriptableObject
@@ -94,8 +96,9 @@ public class WeaponPart : ScriptableObject
     public List<PassiveEffectScriptableObject> passiveEffectsAppliedToSelf;
 
     [Separator("Fire Mode Settings")]
-    [Tooltip("Rounds/min")] public float fireRate;
-    [ReadOnly, Tooltip("Time (s)")] public float fireInterval; // Set at runtime by Weapon
+    [Tooltip("Rounds/min")] public float fireRate; // editor script to link these two
+    [ReadOnly, Tooltip("Time (s)")] public float cooldown;
+    [Tooltip("Time before end of cooldown, input queues a shot soon as cooldown ends")] public float inputBufferTime;
     
     public bool canSwitchFireModes;
     public FireModes currentFireMode;
@@ -202,8 +205,10 @@ public class WeaponPart : ScriptableObject
     #endif
     
     public Task cycleTask;
-    public Task reloadTask;
+    public Stopwatch cycleTimer;
     public CancellationTokenSource cycleCTS;
+    public Task reloadTask;
+    public Stopwatch reloadTimer;
     public CancellationTokenSource reloadCTS;
 
     public void SetupWeaponPart(WeaponScriptableObject weaponScriptableObject)
@@ -217,7 +222,7 @@ public class WeaponPart : ScriptableObject
         cycleTask = Task.CompletedTask;
         reloadTask = Task.CompletedTask;
             
-        fireInterval = 60 / fireRate;
+        cooldown = 60 / fireRate;
         fireRateMultiplier = 1;
 
         isChamberLoaded = true; // change dynamically

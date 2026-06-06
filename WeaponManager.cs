@@ -28,7 +28,7 @@ public class WeaponGroup
 
 public class WeaponManager : MonoBehaviour
 {
-    public delegate void OnHandleWeaponInputs(GameObject validationObject, bool pressOrRelease, InputAction action = null);
+    public delegate void OnHandleWeaponInputs(GameObject validationObject, InputAction.CallbackContext context);
     public static OnHandleWeaponInputs onHandleWeaponInputs;
     public delegate void OnAddWeaponToGroup(GameObject validationObject, string weaponGroupName, Weapon weapon, int index, bool swapToNewWeapon = false);
     public static OnAddWeaponToGroup onAddWeaponToGroup;
@@ -200,7 +200,7 @@ public class WeaponManager : MonoBehaviour
 
     // feed inputs to the weapon and feed only the right type of input (press or release, etc)
     // do NOT perform weapon condition checks here (ammo checks, mana checks), these go in Weapon
-    private void HandleWeaponInputs(GameObject validationObject, bool pressOrRelease, InputAction action)
+    private void HandleWeaponInputs(GameObject validationObject, InputAction.CallbackContext context)
     {
         if (validationObject != gameObject) return;
         
@@ -216,7 +216,7 @@ public class WeaponManager : MonoBehaviour
             if (weaponGroup.SwappingWeapon) return;
             if (weaponGroup.WeaponGroupOnCooldown) return;
             
-            weaponGroup.CurrentWeapon.ProcessWeaponAction(gameObject, action, pressOrRelease);
+            weaponGroup.CurrentWeapon.ProcessWeaponAction(gameObject, context);
         }
     }
 
