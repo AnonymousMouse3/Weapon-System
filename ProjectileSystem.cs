@@ -14,15 +14,18 @@ public class ProjectileSystem : MonoBehaviour
     public static event Action<GameObject, float, float, Vector3> OnImpact;
     public static event Action<GameObject, GameObject, ProjectileComponent> OnHit; // this projectile, target hit, damage
     
-    [FormerlySerializedAs("lingeringEffectsOnDestroy")] [SerializeField] public List<GameObject> dontDestroyLingeringEffects;
-    [SerializeField] public Rigidbody rb;
-    [SerializeField, ReadOnly] public GameObject trackingTarget;
-    [SerializeField] public ProjectileComponent projectileComponent;
+    [SerializeField] Rigidbody rb;
     
-    [SerializeField] public GameObject projectileOwner; // the character who owns the projectile
-    [SerializeField] public Weapon weaponFiredFrom; // the weapon that fired it
-    [SerializeField] public WeaponPart weaponPartFiredFrom; // the weaponpart that fired it
+    [Separator("Runtime States")]
+    [ReadOnly, SerializeField] public GameObject projectileOwner; // the character who owns the projectile
+    [ReadOnly, SerializeField] public Weapon weaponFiredFrom; // the weapon that fired it
+    [ReadOnly, SerializeField] public WeaponPart weaponPartFiredFrom; // the weaponpart that fired it
+    [SerializeField, ReadOnly] public GameObject trackingTarget;
+    
+    [FormerlySerializedAs("lingeringEffectsOnDestroy")] [SerializeField] public List<GameObject> dontDestroyLingeringEffects;
+    [SerializeField] public ProjectileComponent projectileComponent;
 
+    
     private bool trackingAllowed;
     private bool trackingDelayTimers;
     
@@ -45,14 +48,12 @@ public class ProjectileSystem : MonoBehaviour
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Awake()
     {
+        gameObject.TryGetComponent(out Rigidbody rb);
+        if (rb) rb.useGravity = projectileComponent.projectileGravity;
+        
         if (projectileComponent.projectileLifetime > 0f)
         {
             DestroyProjectile(projectileComponent.projectileLifetime);
-        }
-
-        if (gameObject.TryGetComponent(out Rigidbody rb))
-        {
-            rb.useGravity = projectileComponent.projectileGravity;
         }
         
 #pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
@@ -89,7 +90,7 @@ public class ProjectileSystem : MonoBehaviour
 
     public void ApplyVelocityToProjectile()
     {
-        if (!rb) return;
+        if (!rb) {return;}
         rb.AddForce(transform.forward * projectileComponent.initialVelocity, ForceMode.Impulse);
     }
 
@@ -281,6 +282,7 @@ public class ProjectileSystem : MonoBehaviour
         if (!projectileComponent.destroyOnImpact) return;
 
         transform.DOComplete(this);
+        
         DestroyProjectile();
     }
 

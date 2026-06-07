@@ -2,8 +2,8 @@
 using UnityEngine;
 using UnityEngine.UIElements;
 
-[CustomPropertyDrawer(typeof(WeaponAction))]
-public class WeaponActionsPropertyDrawer : PropertyDrawer
+[CustomPropertyDrawer(typeof(WeaponFunction))]
+public class WeaponFunctionsPropertyDrawer : PropertyDrawer
 {
     
     public VisualTreeAsset VisualTreeAsset;

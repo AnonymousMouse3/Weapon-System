@@ -36,10 +36,6 @@ public class Weapon : MonoBehaviour
     public List<GameObject> prefabFirePoints;
     [DisplayInspector] public WeaponScriptableObject weaponScriptableObject;
     
-    private List<Task> weaponInputActions;
-
-    CancellationTokenSource cts;
-    
     private void OnEnable()
     {
         #if SPELL_SYSTEM
@@ -60,8 +56,6 @@ public class Weapon : MonoBehaviour
 
     private void Start()
     {
-        weaponInputActions = new List<Task>();
-        
         // Create an instance of the WeaponObject so we don't affect the base stats
         WeaponScriptableObject newWeaponScriptableObject = Instantiate(weaponScriptableObject);
         weaponScriptableObject = newWeaponScriptableObject;
@@ -72,10 +66,13 @@ public class Weapon : MonoBehaviour
             WeaponPart newWeaponPart = Instantiate(weaponPart);
             newWeaponParts.Add(newWeaponPart);
 
-            foreach (WeaponAction weaponAction in weaponScriptableObject.WeaponFunctions)
+            foreach (WeaponFunction weaponFunction in weaponScriptableObject.WeaponFunctions)
             {
-                if (weaponAction.weaponPart != weaponPart) continue;
-                weaponAction.weaponPart = newWeaponPart;
+                foreach (WeaponFunctionAction weaponFunctionAction in weaponFunction.FunctionActions)
+                {
+                    if (weaponFunctionAction.WeaponPart != weaponPart) continue;
+                    weaponFunctionAction.WeaponPart = newWeaponPart;
+                }
             }
         }
 
@@ -113,77 +110,82 @@ public class Weapon : MonoBehaviour
         }
     }
 
-    public void ProcessWeaponAction(GameObject validationObject, InputAction.CallbackContext context)
+    public void ProcessWeaponFunction(GameObject validationObject, InputAction.CallbackContext context)
     {
         if (validationObject != weaponScriptableObject.weaponOwner) return;
 
-        WeaponPart currentWeaponPart = null;
-        WeaponAction currentWeaponAction = null;
+        WeaponFunction currentWeaponFunction = null;
+        List<WeaponPart> functionWeaponParts = new List<WeaponPart>();
 
-        foreach (WeaponAction weaponAction in weaponScriptableObject.WeaponFunctions)
+        foreach (WeaponFunction weaponFunction in weaponScriptableObject.WeaponFunctions)
         {
-            if (!weaponAction.InputActionListenedTo) continue;
-            if (weaponAction.InputActionListenedTo.action != context.action) continue;
+            if (!weaponFunction.InputAction) continue;
+            if (weaponFunction.InputAction.action != context.action) continue;
             
-            currentWeaponAction = weaponAction;
-            currentWeaponPart = currentWeaponAction.weaponPart;
+            currentWeaponFunction = weaponFunction;
+            foreach (WeaponFunctionAction functionAction in currentWeaponFunction.FunctionActions)
+            {
+                functionWeaponParts.Add(functionAction.WeaponPart);
+            }
         }
         
-        if (!currentWeaponPart) return;
+        if (functionWeaponParts.IsNullOrEmpty()) return;
 
-        bool canShoot = true;
-        
-        foreach (WeaponActionCondition actionCondition in currentWeaponAction.ActionConditions)
+        foreach (WeaponPart weaponPart in functionWeaponParts)
         {
-            switch (actionCondition.ConditionType)
+            bool canShoot = true;
+        
+            foreach (WeaponFunctionCondition actionCondition in currentWeaponFunction.FunctionConditions)
             {
-                case WeaponActionCondition.WeaponActionConditionType.Nothing:
-                    if (!context.performed) { actionCondition.Fulfilled = false; break; }
-                    actionCondition.Fulfilled = true;
-                    break;
-                
-                case WeaponActionCondition.WeaponActionConditionType.ChargedForTime:
-                    if (!context.performed) break; // only start one task at a time
+                switch (actionCondition.ConditionType)
+                {
+                    case WeaponFunctionCondition.WeaponFunctionConditionType.Nothing:
+                        if (!context.performed) { actionCondition.Fulfilled = false; break; }
+                        actionCondition.Fulfilled = true;
+                        break;
                     
-                    // TODO - MULTIPLE CHARGE TASKS
-                    cts = new CancellationTokenSource();
-                    WaitForCharge(cts.Token, context, currentWeaponPart, actionCondition, actionCondition.AutoRelease);
-                    actionCondition.Fulfilled = false;
-                    break;
+                    case WeaponFunctionCondition.WeaponFunctionConditionType.ChargedForTime:
+                        if (!context.performed) break; // only start one task at a time
+                        
+                        weaponPart.chargeCTS = new CancellationTokenSource();
+                        weaponPart.chargeTask = WaitForCharge(weaponPart.chargeCTS.Token, context, weaponPart, actionCondition, actionCondition.AutoRelease);
+                        actionCondition.Fulfilled = false;
+                        break;
+                }
+                
+                if (!actionCondition.Fulfilled) canShoot = false;
             }
             
-            if (!actionCondition.Fulfilled) canShoot = false;
-        }
-        
-        if (context.performed)
-        {
-            if (canShoot)
+            if (context.performed)
             {
-                currentWeaponPart.isTriggerPulled = true;
-                TryFireWeaponLoop(currentWeaponPart);
-                // set weapon action to completed
+                if (canShoot)
+                {
+                    weaponPart.isTriggerPulled = true;
+                    TryFireWeaponLoop(weaponPart);
+                    // set weapon action to completed
+                }
+                else
+                {
+                    /*cts?.Cancel();
+                    currentWeaponPart.isTriggerPulled = false;
+                    OnWeaponRelease?.Invoke(this);*/
+                }
             }
-            else
+            
+            if (context.canceled)
             {
-                /*cts?.Cancel();
-                currentWeaponPart.isTriggerPulled = false;
-                OnWeaponRelease?.Invoke(this);*/
-            }
-        }
-        
-        if (context.canceled)
-        {
-            if (canShoot)
-            {
-                currentWeaponPart.isTriggerPulled = true;
-                TryFireWeaponLoop(currentWeaponPart);
-                // set weapon action to completed
-            }
-            else
-            {
-                cts?.Cancel();
-                currentWeaponPart.isTriggerPulled = false;
-                OnWeaponRelease?.Invoke(this);
+                if (canShoot)
+                {
+                    weaponPart.isTriggerPulled = true;
+                    TryFireWeaponLoop(weaponPart);
+                    // set weapon action to completed
+                }
+                else
+                {
+                    weaponPart.chargeCTS?.Cancel();
+                    weaponPart.isTriggerPulled = false;
+                    OnWeaponRelease?.Invoke(this);
+                }
             }
         }
     }
@@ -202,21 +204,36 @@ public class Weapon : MonoBehaviour
     // but this could introduce a 0.05s delay to the "charged" flag flipping true - so at most, a 2s charge becomes 2.05s
     // which is trivial - charge times are already tough to mentally predict, so this should have minimal gameplay impact
     // this is opposed to a 0.05s *input delay* - which would have an appreciable effect on gameplay, even if small
-    private async Task WaitForCharge(CancellationToken ct, InputAction.CallbackContext context, WeaponPart weaponPart, WeaponActionCondition actionCondition, bool autoRelease)
+    private async Task WaitForCharge(CancellationToken ct, InputAction.CallbackContext context, WeaponPart weaponPart, WeaponFunctionCondition functionCondition, bool autoRelease)
     {
         for (float f = 0; f < 1000; f += 0.05f)
         {
-            if (ct.IsCancellationRequested) break;
-            
+            weaponPart.chargePercent = f / functionCondition.ChargeTime * 100;
+
             if (weaponScriptableObject.debugWeapon) Debug.Log($"{context.action.name} - {f}");
-            if (f >= actionCondition.ChargeTime)
+            if (weaponScriptableObject.debugWeapon) Debug.Log($"Charge - {weaponPart.chargePercent}%");
+            
+            if (ct.IsCancellationRequested)
             {
-                actionCondition.Fulfilled = true;
+                weaponPart.chargePercent = 0;
+                
+                if (!functionCondition.AllowPartialCharge) break;
+                weaponPart.isTriggerPulled = true;
+                TryFireWeaponLoop(weaponPart);
+                functionCondition.Fulfilled = false;
+                break;
+            }
+            
+            if (f >= functionCondition.ChargeTime)
+            {
+                weaponPart.chargePercent = 0;
+                functionCondition.Fulfilled = true;
+                
                 if (autoRelease)
                 {
                     weaponPart.isTriggerPulled = true;
                     TryFireWeaponLoop(weaponPart);
-                    actionCondition.Fulfilled = false;
+                    functionCondition.Fulfilled = false;
                 }
                 break;
             }
@@ -244,44 +261,37 @@ public class Weapon : MonoBehaviour
         }
     }
 
-    /*private WeaponPart CheckWeaponActionConditions(WeaponAction weaponAction)
+    /*private WeaponPart CheckWeaponFunctionConditions(WeaponFunction weaponFunction)
     {
-        foreach (WeaponActionCondition actionCondition in weaponAction.ActionConditions)
+        foreach (WeaponFunctionCondition functionCondition in weaponFunction.FunctionConditions)
         {
-            switch (actionCondition.ConditionType)
+            switch (functionCondition.ConditionType)
             {
-                case WeaponActionCondition.WeaponActionConditionType.Nothing:
-                    return weaponAction.weaponPart;
+                case WeaponFunctionCondition.WeaponFunctionConditionType.Nothing:
+                    return weaponFunction.weaponPart;
                 
-                case WeaponActionCondition.WeaponActionConditionType.AnyProjectileActive:
+                case WeaponFunctionCondition.WeaponFunctionConditionType.AnyProjectileActive:
                     if (!AnyProjectileActiveCheck(weaponAction)) return null;
                     
-                    return weaponAction.weaponPart;
+                    return weaponFunction.weaponPart;
                 
-                case WeaponActionCondition.WeaponActionConditionType.ChargedForTime:
+                case WeaponFunctionCondition.WeaponFunctionConditionType.ChargedForTime:
                     
-                    return weaponAction.weaponPart;
+                    return weaponFunction.weaponPart;
                 
-                case WeaponActionCondition.WeaponActionConditionType.ActionComplete:
+                case WeaponFunctionCondition.WeaponFunctionConditionType.CheckOtherFunction:
                     if (!ActionCompleteCheck(actionCondition)) return null;
                     
-                    return weaponAction.weaponPart;
-                
-                case WeaponActionCondition.WeaponActionConditionType.ActionIncomplete:
-                    if(ActionIncompleteCheck(actionCondition)) return null;
-                    
-                    return weaponAction.weaponPart;
+                    return weaponFunction.weaponPart;
             }
         }
 
         return null;
     }*/
 
-    private bool AnyProjectileActiveCheck(WeaponAction weaponAction)
+    private bool AnyProjectileActiveCheck(WeaponFunctionCondition functionCondition)
     {
-        if (weaponAction.weaponPart.projectilePrefabs.IsNullOrEmpty()) return false;
-        
-        return true;
+        return !functionCondition.WeaponPart.projectilePrefabs.IsNullOrEmpty();
     }
 
     private void ChargeTimeCheck()
@@ -289,18 +299,10 @@ public class Weapon : MonoBehaviour
         
     }
 
-    private bool ActionCompleteCheck(WeaponActionCondition actionCondition)
+    private bool FunctionCompleteCheck(WeaponFunctionCondition functionCondition)
     {
-        if (actionCondition.ActionToMonitor.ActionComplete) return true;
-        
-        return false;
-    }
-    
-    private bool ActionIncompleteCheck(WeaponActionCondition actionCondition)
-    {
-        if (!actionCondition.ActionToMonitor.ActionComplete) return true;
-        
-        return false;
+        WeaponFunctionCondition conditionToCheck = weaponScriptableObject.GetFunctionConditionByName(functionCondition.ConditionToMonitor);
+        return conditionToCheck.Fulfilled;
     }
 
     private async void TryFireWeaponLoop(WeaponPart weaponPart)
@@ -416,7 +418,7 @@ public class Weapon : MonoBehaviour
     {
         if (!weaponPart.firePoint) return;
         
-        // handle this through WeaponActions instead
+        // handle this through WeaponFunctions instead
         /*Transform selectedFirePoint = firePoints[weaponPart.firePointCounter].transform;
 
         if (cycleFirePoints) weaponPart.firePointCounter++;

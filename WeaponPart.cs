@@ -10,7 +10,7 @@ using UnityEngine.Serialization;
 using UnityEngine.UI;
 using Debug = UnityEngine.Debug;
 
-[Serializable, CreateAssetMenu(fileName = "WeaponPart", menuName = "Weapon Part")]
+[Serializable, CreateAssetMenu(fileName = "WeaponPart", menuName = "Weapon System/Weapon Part")]
 public class WeaponPart : ScriptableObject
 {
     [Separator("Set in Prefab")]
@@ -28,6 +28,7 @@ public class WeaponPart : ScriptableObject
     [ConditionalField(nameof(hasMagazine))] public int currentMagazineAmmo;
     [ConditionalField(nameof(hasReserveAmmo))] public int currentReserveAmmo;
     
+    [ReadOnly] public float chargePercent;
     [ReadOnly] public float fireRateMultiplier = 1;
     [ReadOnly] public float damageMultiplier = 1;
     [ReadOnly] public float burstCounter;
@@ -60,6 +61,8 @@ public class WeaponPart : ScriptableObject
     {
         PrimaryFire,
         SecondaryFire,
+        CanModifyFireRate,
+        CanModifyDamage,
     }
 
     [Separator("UI Settings")]
@@ -98,6 +101,7 @@ public class WeaponPart : ScriptableObject
     [Separator("Fire Mode Settings")]
     [Tooltip("Rounds/min")] public float fireRate; // editor script to link these two
     [ReadOnly, Tooltip("Time (s)")] public float cooldown;
+    [Tooltip("Time (s)")] public float groupCooldown;
     [Tooltip("Time before end of cooldown, input queues a shot soon as cooldown ends")] public float inputBufferTime;
     
     public bool canSwitchFireModes;
@@ -169,12 +173,8 @@ public class WeaponPart : ScriptableObject
     [Separator("Spells")]
     public bool isSpell;
     
-    [ConditionalField(nameof(isSpell), false)] public int manaCost;
+    [FormerlySerializedAs("manaCost")] [ConditionalField(nameof(isSpell), false)] public int aetherCost;
     [ConditionalField(nameof(isSpell), false)] public int healthCost;
-    
-    [ConditionalField(nameof(isSpell), false), Tooltip("How long until the spell can be re-used")] public float spellCooldownTime;
-    [ConditionalField(nameof(isSpell), false), Tooltip("How long the spell prevents any spell from being cast")] public float weaponGroupCooldownTime;
-
     [ConditionalField(nameof(isSpell), false)] public SpellType spellType;
     public enum SpellType
     {
@@ -210,6 +210,9 @@ public class WeaponPart : ScriptableObject
     public Task reloadTask;
     public Stopwatch reloadTimer;
     public CancellationTokenSource reloadCTS;
+    public Task chargeTask;
+    public Stopwatch chargeTimer;
+    public CancellationTokenSource chargeCTS;
 
     public void SetupWeaponPart(WeaponScriptableObject weaponScriptableObject)
     {

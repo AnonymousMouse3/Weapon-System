@@ -9,82 +9,59 @@ using UnityEngine.UI;
 // Credit to DeadCows' MyBox for additional editor attributes - https://github.com/Deadcows/MyBox/
 
 [Serializable]
-public class WeaponAction
+public class WeaponFunction
 {
-    [ReadOnly] public bool ActionComplete;
-    public InputActionReference InputActionListenedTo;
-    public List<WeaponActionCondition> ActionConditions;
-    public List<WeaponActionsToTake> ActionsToTake;
-    [SerializeReference] public WeaponPart weaponPart;
-    
-    public enum WeaponActionsToTake
-    {
-        ShootWeaponPart
-    }
+    [ReadOnly] public bool FunctionComplete;
+    public InputActionReference InputAction;
+    public List<WeaponFunctionCondition> FunctionConditions;
+    public List<WeaponFunctionAction> FunctionActions;
 }
 
 [Serializable]
-public class WeaponActionCondition
+public class WeaponFunctionCondition
 {
+    public string ConditionName;
     [ReadOnly] public bool Fulfilled = false;
-    public WeaponActionConditionType ConditionType;
+    public WeaponFunctionConditionType ConditionType;
 
-    [ConditionalField(nameof(ConditionType), false, WeaponActionConditionType.CheckOtherActionIsComplete, WeaponActionConditionType.CheckOtherActionIsIncomplete)]
-    public WeaponAction ActionToMonitor; // TEMP - this will be cleaner in future, remake with UI toolkit
+    [ConditionalField(nameof(ConditionType), false, WeaponFunctionConditionType.CheckOtherCondition)]
+    public string ConditionToMonitor; // string comparison for now - can't justify making every condition into a scriptableobject
+    [ConditionalField(nameof(ConditionType), false, WeaponFunctionConditionType.CheckOtherCondition)]
+    public bool DesireCompleted;
 
-    [ConditionalField(nameof(ConditionType), false, WeaponActionConditionType.AnyProjectileActive)]
-    public WeaponPart weaponPart;
+    [ConditionalField(nameof(ConditionType), false, WeaponFunctionConditionType.AnyProjectileActive)]
+    public WeaponPart WeaponPart;
 
-    [ConditionalField(nameof(ConditionType), false, WeaponActionConditionType.ChargedForTime)]
+    [ConditionalField(nameof(ConditionType), false, WeaponFunctionConditionType.ChargedForTime)]
     public float ChargeTime;
+    [ConditionalField(nameof(ConditionType), false, WeaponFunctionConditionType.ChargedForTime)]
+    public bool AllowPartialCharge;
 
-    [ConditionalField(nameof(ConditionType), false, WeaponActionConditionType.ChargedForTime)]
+    [ConditionalField(nameof(ConditionType), false, WeaponFunctionConditionType.ChargedForTime)]
     public bool AutoRelease;
 
-    public enum WeaponActionConditionType
+    public enum WeaponFunctionConditionType
     {
         Nothing,
         AnyProjectileActive,
         ChargedForTime,
-        CheckOtherActionIsComplete,
-        CheckOtherActionIsIncomplete,
+        CheckOtherCondition,
     }
 }
 
 [Serializable]
-public class DamageComponent
+public class WeaponFunctionAction
 {
-    [Separator("Main Settings")]
-    public float baseDamage;
-    public List<PassiveEffectScriptableObject> passiveEffectsAppliedToTarget;
+    public WeaponFunctionActions FunctionActions;
+    [SerializeReference, ConditionalField(nameof(FunctionActions), false, WeaponFunctionActions.UseWeaponPart)]
+    public WeaponPart WeaponPart;
     
-    [Separator("Explosion Settings")]
-    [SerializeField] public bool isExplosive;
-    [SerializeField] public float explosionRadius;
-    [SerializeField] public bool scaleDamageWithDistance;
-    
-    [SerializeField] public bool destroySelf;
-    [SerializeField] public float explosionDelay;
-    [SerializeField] public LayerMask layersToHit;
-    [SerializeField] public int maxTargetsChecked;
-    
-    [Separator("Armour Penetration")]
-    [SerializeField] public int explosionArmourPenetration;
-    
-    [Separator("Status Effect Settings")]
-    public bool appliesDamageOverTime;
-    [ReadOnly(nameof(appliesDamageOverTime), true)] public float damagePerTick;
-    [ReadOnly(nameof(appliesDamageOverTime), true), Min(0.1f)] public float damageTickDuration;
-    
-    #if SPELL_SYSTEM
-    [Separator("Spell Settings")]
-    public bool enableManasteal;
-    public float manastealMultiplier = 1;
-    
-    public bool enableLifesteal;
-    public float lifestealMultiplier = 1;
-    #endif
+    public enum WeaponFunctionActions
+    {
+        UseWeaponPart
+    }
 }
+
 
 [Serializable]
 public class ParticlesAndLayers
@@ -94,14 +71,68 @@ public class ParticlesAndLayers
 }
 
 [Serializable]
+public class ExplosionComponent
+{
+    public float explosionRadius;
+    public bool scaleDamageWithDistance;
+    
+    public int explosionArmourPenetration;
+    
+    public bool destroySelf;
+    public float explosionDelay;
+    public LayerMask layersToHit;
+    public int maxTargetsChecked;
+}
+
+[Serializable]
+public class DamageComponent
+{
+    [Separator("Main Settings")]
+    public float baseDamage;
+    public DamageType damageType;
+    public DamageElement damageElement;
+    public List<PassiveEffectScriptableObject> passiveEffectsAppliedToTarget;
+    
+    [Separator("Armour Penetration")]
+    [SerializeField] public int armourPenetration;
+
+    public enum DamageType
+    {
+        WeaponDamage,
+        SpellDamage,
+    }
+    
+    public enum DamageElement
+    {
+        Fire,
+        Water,
+        Ice,
+        Air,
+        Iron,
+        Lunar,
+        Cosmic,
+        Life,
+        Blood,
+    }
+    
+    #if SPELL_SYSTEM
+    [Separator("Spell Settings")]
+    public bool enableAethersteal;
+    public float aetherstealMultiplier = 1;
+    
+    public bool enableLifesteal;
+    public float lifestealMultiplier = 1;
+    #endif
+}
+
+[Serializable]
 public class ProjectileComponent
 {
-    [Tooltip("The prefab of the current projectile.")]
-    public GameObject projectilePrefab;
     [Tooltip("The damage component of the current projectile.")]
     public DamageComponent damageComponent;
     [Tooltip("The GameObject(s) that the projectile is able to spawn on impact, during flight, etc.")]
     public List<GameObject> projectileWarheads;
+    public bool detonateWarheadsOnImpact;
     [Tooltip("The on-hit particle system of the projectile.")]
     public List<ParticlesAndLayers> onHitParticles;
     
@@ -118,51 +149,53 @@ public class ProjectileComponent
     [Tooltip("Time (s)")] public float projectileLifetime;
     public bool destroyOnImpact;
     public bool triggerOnImpact;
-    public bool detonateWarheadsOnImpact;
     public bool spawnAsChildOfWeapon;
     public bool linkedToWeapon;
-    [ReadOnly(nameof(linkedToWeapon), true)] public bool destroyWhenWeaponReleases;
+    [ConditionalField(nameof(linkedToWeapon), false)] public bool destroyWhenWeaponReleases;
     
     [Tooltip("Velocity (m/s)")] public float initialVelocity;
     [Tooltip("Velocity (m/s). 0 = No limit.")] public float maxVelocity;
     [Tooltip("Mass (g)")] public float projectileMass;
 
-    [Separator("Tracking")]
+    [Separator("Tracking Settings")]
     public bool isTracking;
-    [ReadOnly(nameof(isTracking), true)] public float trackingTurnTime;
-    [ReadOnly(nameof(isTracking), true)] public float trackingForce;
-    [ReadOnly(nameof(isTracking), true)] public float trackingPValue;
-    [ReadOnly(nameof(isTracking), true)] public float trackingStartDelay;
-    [ReadOnly(nameof(isTracking), true)] public float trackingActiveDuration;
-    [ReadOnly(nameof(isTracking), true)] public bool snapToTargetAfterDuration;
+    [ConditionalField(nameof(isTracking), false)] public float trackingTurnTime;
+    [ConditionalField(nameof(isTracking), false)] public float trackingForce;
+    [ConditionalField(nameof(isTracking), false)] public float trackingPValue;
+    [ConditionalField(nameof(isTracking), false)] public float trackingStartDelay;
+    [ConditionalField(nameof(isTracking), false)] public float trackingActiveDuration;
+    [ConditionalField(nameof(isTracking), false)] public bool snapToTargetAfterDuration;
     
-    [ReadOnly(nameof(isTracking), true)] public TrackingModes currentTrackingMode;
+    [ConditionalField(nameof(isTracking), false)] public TrackingModes currentTrackingMode;
     public enum TrackingModes
     {
         CannotSwitchTarget,
     }
     
+    [Separator("Drag Settings")]
     public bool projectileDrag;
-    [ReadOnly(nameof(projectileDrag), true)] public float projectileDragFactor;
+    [ConditionalField(nameof(projectileDrag), false)] public float projectileDragFactor;
     
+    [Separator("Gravity Settings")]
     public bool projectileGravity;
-    [ReadOnly(nameof(projectileGravity), true)] public float projectileGravityFactor;
+    [ConditionalField(nameof(projectileGravity), false)] public float projectileGravityFactor;
 
+    [Separator("Engine Settings")]
     [Tooltip("Whether the projectile is powered by a rocket engine or the like, and generates its own velocity after firing.")]
     public bool isPowered;
-    [ReadOnly(nameof(isPowered), true)] public float enginePower;
-    [ReadOnly(nameof(isPowered), true)] public float engineTime;
-    [ReadOnly(nameof(isPowered), true)] public float engineDelay;
+    [ConditionalField(nameof(isPowered), false)] public float enginePower;
+    [ConditionalField(nameof(isPowered), false)] public float engineTime;
+    [ConditionalField(nameof(isPowered), false)] public float engineDelay;
 
     #if LIQUID_SYSTEM
     [Separator("Liquid Settings")]
     public bool createsLiquid;
-    [ReadOnly(nameof(createsLiquid), true)] public int radius;
-    [ReadOnly(nameof(createsLiquid), true)] public Liquid liquidType;
+    [ConditionalField(nameof(createsLiquid), false)] public int radius;
+    [ConditionalField(nameof(createsLiquid), false)] public Liquid liquidType;
     #endif
     
     [Separator("Magnetism Settings")]
     public bool isMagnetic;
-    [ReadOnly(nameof(isMagnetic) ,true), Range(1f, 100f)]
+    [ConditionalField(nameof(isMagnetic), false), Range(1f, 100f)]
     public float magnetAttractionFactor;
 }

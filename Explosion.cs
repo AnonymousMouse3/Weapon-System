@@ -5,6 +5,7 @@ using UnityEngine;
 
 public class Explosion : MonoBehaviour
 {
+    [SerializeField] private ExplosionComponent explosionComponent;
     [SerializeField] private DamageComponent damageComponent;
     
     private Task explosionTask = Task.CompletedTask;
@@ -12,7 +13,7 @@ public class Explosion : MonoBehaviour
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
-        explosionTask = Explode(damageComponent.explosionDelay);
+        explosionTask = Explode(explosionComponent.explosionDelay);
     }
 
     private async Task Explode(float delay)
@@ -20,7 +21,7 @@ public class Explosion : MonoBehaviour
         await MouseTools.AwaitableTimer(delay);
         
         Collider[] hitTargets = new Collider[10];
-        Physics.OverlapSphereNonAlloc(transform.position, damageComponent.explosionRadius, hitTargets);
+        Physics.OverlapSphereNonAlloc(transform.position, explosionComponent.explosionRadius, hitTargets);
 
         foreach (Collider collider in hitTargets)
         {
@@ -32,7 +33,7 @@ public class Explosion : MonoBehaviour
             healthSystem.DoDamage(damageComponent);
         }
 
-        if (!damageComponent.destroySelf) return;
+        if (!explosionComponent.destroySelf) return;
         
         // Preserve trails, projectiles, sound emitters, etc.
         // The effects themselves are under an empty GameObject named "Effects" which is unparented from the projectile
