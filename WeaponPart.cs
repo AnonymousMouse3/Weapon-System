@@ -28,6 +28,8 @@ public class WeaponPart : ScriptableObject
     [ConditionalField(nameof(hasMagazine))] public int currentMagazineAmmo;
     [ConditionalField(nameof(hasReserveAmmo))] public int currentReserveAmmo;
     
+    [ReadOnly] public FireModes currentFireMode;
+    
     [ReadOnly] public float chargePercent;
     [ReadOnly] public float fireRateMultiplier = 1;
     [ReadOnly] public float damageMultiplier = 1;
@@ -53,16 +55,15 @@ public class WeaponPart : ScriptableObject
         ReadyToFire,
     }
 
-    [Separator("Technical Settings")]
-    public WeaponPartFlags weaponPartFlags;
+    [FormerlySerializedAs("weaponPartFlags")] [Separator("Technical Settings")]
+    public WeaponPartTags weaponPartTags;
 
-    [Flags]
-    public enum WeaponPartFlags
+    [Flags] public enum WeaponPartTags
     {
-        PrimaryFire,
-        SecondaryFire,
-        CanModifyFireRate,
-        CanModifyDamage,
+        PrimaryFire = 1,
+        SecondaryFire = 2,
+        CanModifyFireRate = 4,
+        CanModifyDamage = 8,
     }
 
     [Separator("UI Settings")]
@@ -99,19 +100,22 @@ public class WeaponPart : ScriptableObject
     public List<PassiveEffectScriptableObject> passiveEffectsAppliedToSelf;
 
     [Separator("Fire Mode Settings")]
-    [Tooltip("Rounds/min")] public float fireRate; // editor script to link these two
-    [ReadOnly, Tooltip("Time (s)")] public float cooldown;
+    [SerializeField, Tooltip("Rounds/min")] private float fireRate; // cached variable for editor
+    [SerializeField, Tooltip("Time (s)")] private float cooldown; // cached variable for editor
     [Tooltip("Time (s)")] public float groupCooldown;
     [Tooltip("Time before end of cooldown, input queues a shot soon as cooldown ends")] public float inputBufferTime;
+    [HideInInspector] public float _fireRate; // real fire rate
+    [HideInInspector] public float _cooldown; // real cooldown
+    [HideInInspector] public float minimumFireRate = 0.0001f;
     
     public bool canSwitchFireModes;
-    public FireModes currentFireMode;
-    public FireModes availableFireModes;
-    public enum FireModes
+    
+    public FireModes availableFireModes = FireModes.SemiAuto;
+    [Flags] public enum FireModes
     {
-        SemiAuto = 0,
-        FullAuto = 1,
-        Burst = 2,
+        SemiAuto = 1,
+        FullAuto = 2,
+        Burst = 4,
     }
     
     public int burstLength;
@@ -175,14 +179,6 @@ public class WeaponPart : ScriptableObject
     
     [FormerlySerializedAs("manaCost")] [ConditionalField(nameof(isSpell), false)] public int aetherCost;
     [ConditionalField(nameof(isSpell), false)] public int healthCost;
-    [ConditionalField(nameof(isSpell), false)] public SpellType spellType;
-    public enum SpellType
-    {
-        Static,
-        Projectile,
-        AoE,
-        Uncastable,
-    }
     
     [ConditionalField(nameof(isSpell), false)] public SpellSchool spellSchool;
     
@@ -219,13 +215,23 @@ public class WeaponPart : ScriptableObject
         parentWeaponScriptableObject = weaponScriptableObject;
             
         //replace with an actual check on start
-        firingState = WeaponPart.FiringState.ReadyToFire;
-        reloadState = WeaponPart.ReloadState.ReadyToFire;
+        firingState = FiringState.ReadyToFire;
+        reloadState = ReloadState.ReadyToFire;
             
         cycleTask = Task.CompletedTask;
         reloadTask = Task.CompletedTask;
-            
-        cooldown = 60 / fireRate;
+
+        
+        // for now, default to the first available fire mode
+        foreach (FireModes fireMode in Enum.GetValues(typeof(FireModes)))
+        {
+            if (!availableFireModes.HasFlag(fireMode)) continue;
+            currentFireMode = fireMode;
+            break;
+        }
+
+        if (currentFireMode == 0) currentFireMode = FireModes.SemiAuto;
+        
         fireRateMultiplier = 1;
 
         isChamberLoaded = true; // change dynamically
@@ -234,5 +240,45 @@ public class WeaponPart : ScriptableObject
             
         if (projectilePrefabs.IsNullOrEmpty()) { Debug.Log("Weapon part has no projectile. Assign one in the inspector."); return; }
         currentProjectile = projectilePrefabs[0]; // change/remember the default during gameplay? hardcoded for now
+    }
+
+    void OnValidate()
+    {
+        // if the cached value is not equal to the real value, then that is the value that was changed
+        if (!Mathf.Approximately(cooldown, _cooldown) && cooldown > 0)
+        {
+            _fireRate = 60 / cooldown;
+            
+            fireRate = _fireRate;
+            _cooldown = cooldown;
+            return;
+        }
+
+        if (!Mathf.Approximately(fireRate, _fireRate) && fireRate > 0)
+        {
+            _cooldown = 60 / fireRate;
+        
+            cooldown = _cooldown;
+            _fireRate = fireRate;
+            return;
+        }
+        
+        if (cooldown <= 0)
+        {
+            cooldown = minimumFireRate;
+            
+            _cooldown = 60 / fireRate;
+            cooldown = _cooldown;
+            _fireRate = fireRate;
+        }
+        
+        if (fireRate <= 0)
+        {
+            fireRate = minimumFireRate;
+            _fireRate = 60 / cooldown;
+            
+            fireRate = _fireRate;
+            _cooldown = cooldown;
+        }
     }
 }

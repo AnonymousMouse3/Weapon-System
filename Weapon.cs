@@ -310,7 +310,7 @@ public class Weapon : MonoBehaviour
         if (!weaponPart.reloadTask.IsCompleted) { await weaponPart.reloadTask; }
         
         // if the weapon is still on cooldown, but the input is given within the buffer period, await the task to buffer the next shot
-        if (!weaponPart.cycleTask.IsCompleted && weaponPart.cooldown * 1000 - weaponPart.cycleTimer.ElapsedMilliseconds <= weaponPart.inputBufferTime * 1000)
+        if (!weaponPart.cycleTask.IsCompleted && weaponPart._cooldown * 1000 - weaponPart.cycleTimer.ElapsedMilliseconds <= weaponPart.inputBufferTime * 1000)
         {
             await weaponPart.cycleTask;
         }
@@ -593,7 +593,7 @@ public class Weapon : MonoBehaviour
     {
         weaponPart.firingState = WeaponPart.FiringState.Cycling;
 
-        await MouseTools.AwaitableTimer(weaponPart.cooldown);
+        await MouseTools.AwaitableTimer(weaponPart._cooldown);
 
         weaponPart.firingState = WeaponPart.FiringState.ReadyToFire;
     }
@@ -646,6 +646,19 @@ public class Weapon : MonoBehaviour
         }
         
         weaponPart.reloadState = WeaponPart.ReloadState.ReadyToFire;
+    }
+
+    // untested!
+    private void CycleFireMode(WeaponPart weaponPart)
+    {
+        foreach (WeaponPart.FireModes fireMode in Enum.GetValues(typeof(WeaponPart.FireModes)))
+        {
+            if (!weaponPart.availableFireModes.HasFlag(fireMode) || fireMode == weaponPart.currentFireMode) continue;
+            weaponPart.currentFireMode = fireMode;
+            break;
+        }
+
+        if (weaponPart.currentFireMode == 0) weaponPart.currentFireMode = WeaponPart.FireModes.SemiAuto;
     }
     
     /*private void RackWeapon()

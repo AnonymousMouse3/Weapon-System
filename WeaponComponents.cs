@@ -89,17 +89,17 @@ public class DamageComponent
 {
     [Separator("Main Settings")]
     public float baseDamage;
-    public DamageType damageType;
+    [FormerlySerializedAs("damageType")] public DamageTags damageTags;
     public DamageElement damageElement;
     public List<PassiveEffectScriptableObject> passiveEffectsAppliedToTarget;
     
     [Separator("Armour Penetration")]
     [SerializeField] public int armourPenetration;
 
-    public enum DamageType
+    [Flags] public enum DamageTags
     {
-        WeaponDamage,
-        SpellDamage,
+        WeaponDamage = 1,
+        SpellDamage = 2,
     }
     
     public enum DamageElement
