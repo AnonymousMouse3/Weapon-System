@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading.Tasks;
+using System.Timers;
 using DG.Tweening;
 using MouseLib;
 using MyBox;
@@ -34,6 +36,8 @@ public class ProjectileSystem : MonoBehaviour
     
     private bool engineAllowed;
     private bool beingDestroyed;
+    
+    private Stopwatch projectileLifetimeTimer = Stopwatch.StartNew();
 
     private void OnEnable()
     {
@@ -62,6 +66,8 @@ public class ProjectileSystem : MonoBehaviour
         
         if (projectileComponent.maxVelocity <= 0) return;
         rb.maxLinearVelocity = projectileComponent.maxVelocity;
+        
+        projectileLifetimeTimer.Restart();
     }
 
     void FixedUpdate()
@@ -86,6 +92,11 @@ public class ProjectileSystem : MonoBehaviour
             // Apply engine force until engine fuel runs out
             rb.AddForce(transform.forward * projectileComponent.enginePower, ForceMode.Acceleration);
         }
+    }
+
+    void Update()
+    {
+        projectileComponent.projectileActiveTime = projectileLifetimeTimer.ElapsedMilliseconds;
     }
 
     public void ApplyVelocityToProjectile()
@@ -311,9 +322,10 @@ public class ProjectileSystem : MonoBehaviour
         DestroyProjectile();
     }
 
-    private async void DestroyProjectile(float delay = 0f)
+    public async void DestroyProjectile(float delay = 0f)
     {
         await MouseTools.AwaitableTimer(delay);
+        projectileLifetimeTimer.Stop();
         
         if (beingDestroyed) return;
         beingDestroyed = true;

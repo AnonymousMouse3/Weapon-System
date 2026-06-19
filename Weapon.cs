@@ -8,6 +8,7 @@ using MouseLib;
 using MyBox;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.Serialization;
 using Debug = UnityEngine.Debug;
 
 // OLD INACCURATE DESCRIPTION
@@ -32,9 +33,14 @@ public class Weapon : MonoBehaviour
     public static event Action<WeaponPart, float> OnAttackSpeedModifierChange;
     public static event Action<GameObject, WeaponPart> OnSpellCast;
     public static event Action<GameObject, WeaponPart> OnAttemptSpellCast;
+
+    public bool simpleWeapon;
     
-    public List<GameObject> prefabFirePoints;
-    [DisplayInspector] public WeaponScriptableObject weaponScriptableObject;
+    [ConditionalField(nameof(simpleWeapon), false)] public GameObject simpleFirePoint;
+    [ConditionalField(nameof(simpleWeapon), false)] public WeaponPart simpleWeaponPart;
+    
+    [ConditionalField(nameof(simpleWeapon), false)] public List<GameObject> prefabFirePoints;
+    [DisplayInspector, ConditionalField(nameof(simpleWeapon), false)] public WeaponScriptableObject weaponScriptableObject;
     
     private void OnEnable()
     {
@@ -56,9 +62,18 @@ public class Weapon : MonoBehaviour
 
     private void Start()
     {
+        if (simpleWeapon)
+        {
+            simpleWeaponPart = Instantiate(simpleWeaponPart);
+            if (simpleWeaponPart) simpleWeaponPart.firePoint = simpleFirePoint;
+            simpleWeaponPart.SetupWeaponPart();
+            return;
+        }
+        
         // Create an instance of the WeaponObject so we don't affect the base stats
         WeaponScriptableObject newWeaponScriptableObject = Instantiate(weaponScriptableObject);
         weaponScriptableObject = newWeaponScriptableObject;
+        weaponScriptableObject.weaponCycleState = WeaponScriptableObject.WeaponCycleState.ReadyToFire;
         
         List<WeaponPart> newWeaponParts = new List<WeaponPart>();
         foreach (WeaponPart weaponPart in weaponScriptableObject.WeaponParts)
@@ -108,6 +123,12 @@ public class Weapon : MonoBehaviour
             currentWeaponPart.isTriggerPulled = false;
             OnWeaponRelease?.Invoke(this);
         }
+    }
+
+    // to replace ShootWeaponDirectly
+    public void ShootSimpleWeapon()
+    {
+        if (simpleWeaponPart) TryFireWeapon(simpleWeaponPart);
     }
 
     public void ProcessWeaponFunction(GameObject validationObject, InputAction.CallbackContext context)
@@ -358,9 +379,11 @@ public class Weapon : MonoBehaviour
     private void TryFireWeapon(WeaponPart weaponPart)
     {
         // If the weapon is cycling between shots or reloading, it cannot fire
-        if (weaponPart.firingState == WeaponPart.FiringState.Cycling) { CouldNotFire("weapon still cycling!"); return; }
+        if (weaponPart.firingState == WeaponPart.FiringState.Cycling) { CouldNotFire("weapon part still cycling!"); return; }
     
         if (weaponPart.reloadState == WeaponPart.ReloadState.Reloading) { CouldNotFire("weapon reloading!"); return; }
+        
+        if (weaponScriptableObject && weaponScriptableObject.weaponCycleState == WeaponScriptableObject.WeaponCycleState.Cycling && !weaponPart.hasIndependentCooldown){ CouldNotFire("entire weapon still cycling!"); return; }
         
         if (weaponPart.usesAmmo)
         {
@@ -461,12 +484,22 @@ public class Weapon : MonoBehaviour
         #endif
         
         // make into method?
-        weaponPart.cycleTimer = new Stopwatch();
+        weaponPart.cycleTimer ??= new Stopwatch();
         weaponPart.cycleTimer.Start();
         
-        weaponPart.cycleCTS = new CancellationTokenSource();
-        weaponPart.cycleTask = CycleWeapon(weaponPart, weaponPart.cycleCTS.Token);
+        weaponPart.cycleCTS ??= new CancellationTokenSource();
+        weaponPart.cycleTask = CycleWeaponPart(weaponPart, weaponPart.cycleCTS.Token);
         weaponPart.cycleTask.ContinueWith(x => { weaponPart.cycleTimer.Stop(); });
+
+        if (weaponScriptableObject && weaponPart.weaponCooldown > 0)
+        {
+            weaponScriptableObject.weaponCycleTimer ??= new Stopwatch();
+            weaponScriptableObject.weaponCycleTimer.Start();
+        
+            weaponScriptableObject.weaponCycleCTS ??= new CancellationTokenSource();
+            weaponScriptableObject.weaponCycleTask = CycleWeapon(weaponScriptableObject, weaponPart, weaponScriptableObject.weaponCycleCTS.Token);
+            weaponScriptableObject.weaponCycleTask.ContinueWith(x => { weaponPart.cycleTimer.Stop(); });
+        }
         
         // Remove ammo from the weapon (if it uses ammo)
         if (weaponPart.usesAmmo)
@@ -558,7 +591,7 @@ public class Weapon : MonoBehaviour
         newProjectileSystem.weaponPartFiredFrom = weaponPart;
         newProjectileSystem.weaponPartFiredFrom.spawnedProjectiles.Add(newProjectile);
         newProjectileSystem.weaponFiredFrom = this;
-        newProjectileSystem.projectileOwner = weaponScriptableObject.weaponOwner;
+        if (weaponScriptableObject) newProjectileSystem.projectileOwner = weaponScriptableObject.weaponOwner;
         
         #if SPELL_SYSTEM
         newProjectileSystem.projectileComponent.damageComponent.baseDamage *= 0 + weaponPart.damageMultiplier;
@@ -589,7 +622,16 @@ public class Weapon : MonoBehaviour
         weaponPart.currentProjectile = newAmmoType;
     }
     
-    private async Task CycleWeapon(WeaponPart weaponPart, CancellationToken ct)
+    private async Task CycleWeapon(WeaponScriptableObject scriptableObject, WeaponPart weaponPart, CancellationToken ct)
+    {
+        scriptableObject.weaponCycleState = WeaponScriptableObject.WeaponCycleState.Cycling;
+
+        await MouseTools.AwaitableTimer(weaponPart.weaponCooldown);
+
+        scriptableObject.weaponCycleState = WeaponScriptableObject.WeaponCycleState.ReadyToFire;
+    }
+    
+    private async Task CycleWeaponPart(WeaponPart weaponPart, CancellationToken ct)
     {
         weaponPart.firingState = WeaponPart.FiringState.Cycling;
 
@@ -611,10 +653,10 @@ public class Weapon : MonoBehaviour
         if (weaponPart.hasChamber && weaponPart.isChamberLoaded) return;
         
         weaponPart.reloadCTS = new CancellationTokenSource();
-        weaponPart.reloadTask = ReloadWeapon(weaponPart, weaponPart.reloadCTS.Token);
+        weaponPart.reloadTask = ReloadWeaponPart(weaponPart, weaponPart.reloadCTS.Token);
     }
     
-    private async Task ReloadWeapon(WeaponPart weaponPart, CancellationToken ct)
+    private async Task ReloadWeaponPart(WeaponPart weaponPart, CancellationToken ct)
     {
         // todo reload states/progressive reloading per-weapon
         weaponPart.reloadState = WeaponPart.ReloadState.Reloading;

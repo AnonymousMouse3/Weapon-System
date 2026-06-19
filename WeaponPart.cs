@@ -102,8 +102,10 @@ public class WeaponPart : ScriptableObject
     [Separator("Fire Mode Settings")]
     [SerializeField, Tooltip("Rounds/min")] private float fireRate; // cached variable for editor
     [SerializeField, Tooltip("Time (s)")] private float cooldown; // cached variable for editor
-    [Tooltip("Time (s)")] public float groupCooldown;
-    [Tooltip("Time before end of cooldown, input queues a shot soon as cooldown ends")] public float inputBufferTime;
+    [Tooltip("Whether this WeaponPart will respect the shared weapon cooldown")] public bool hasIndependentCooldown;
+    [Tooltip("Time (s) that the weapon (not just the weapon part) will be on cooldown for")] public float weaponCooldown;
+    [Tooltip("Time (s) that the entire weapon group will be on cooldown for")] public float weaponGroupCooldown;
+    [Tooltip("Time (s) before end of cooldown, input queues a shot soon as cooldown ends")] public float inputBufferTime;
     [HideInInspector] public float _fireRate; // real fire rate
     [HideInInspector] public float _cooldown; // real cooldown
     [HideInInspector] public float minimumFireRate = 0.0001f;
@@ -127,7 +129,7 @@ public class WeaponPart : ScriptableObject
     public bool consumesMultipleAmmo;
     public int ammoConsumedPerShot = 1;
     public bool shootsMultipleProjectiles;
-    public int projectilesPerShot = 1;
+    [ConditionalField(nameof(shootsMultipleProjectiles), false)] public int projectilesPerShot = 1;
     public float projectileSpreadAngle;
     
     [Separator("Chambers")]
@@ -210,9 +212,9 @@ public class WeaponPart : ScriptableObject
     public Stopwatch chargeTimer;
     public CancellationTokenSource chargeCTS;
 
-    public void SetupWeaponPart(WeaponScriptableObject weaponScriptableObject)
+    public void SetupWeaponPart(WeaponScriptableObject weaponScriptableObject = null)
     {
-        parentWeaponScriptableObject = weaponScriptableObject;
+        if (weaponScriptableObject) parentWeaponScriptableObject = weaponScriptableObject;
             
         //replace with an actual check on start
         firingState = FiringState.ReadyToFire;

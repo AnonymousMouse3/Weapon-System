@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using DG.Tweening;
@@ -57,6 +58,17 @@ public class WeaponScriptableObject : ScriptableObject
     [SerializeField] public bool debugWeapon;
     
     public Tween weaponTween;
+    
+    public Task weaponCycleTask;
+    public Stopwatch weaponCycleTimer;
+    public CancellationTokenSource weaponCycleCTS;
+    
+    [ReadOnly] public WeaponCycleState weaponCycleState;
+    public enum WeaponCycleState
+    {
+        Cycling,
+        ReadyToFire,
+    }
 
     public WeaponFunctionCondition GetFunctionConditionByName(string conditionName)
     {

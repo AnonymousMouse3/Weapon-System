@@ -128,6 +128,8 @@ public class DamageComponent
 [Serializable]
 public class ProjectileComponent
 {
+    [ReadOnly] public long projectileActiveTime;
+    
     [Tooltip("The damage component of the current projectile.")]
     public DamageComponent damageComponent;
     [Tooltip("The GameObject(s) that the projectile is able to spawn on impact, during flight, etc.")]
