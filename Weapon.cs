@@ -237,6 +237,7 @@ public class Weapon : MonoBehaviour
             if (ct.IsCancellationRequested)
             {
                 weaponPart.chargePercent = 0;
+                weaponPart.endChargeAmount = f;
                 
                 if (!functionCondition.AllowPartialCharge) break;
                 weaponPart.isTriggerPulled = true;
@@ -248,6 +249,7 @@ public class Weapon : MonoBehaviour
             if (f >= functionCondition.ChargeTime)
             {
                 weaponPart.chargePercent = 0;
+                weaponPart.endChargeAmount = f;
                 functionCondition.Fulfilled = true;
                 
                 if (autoRelease)

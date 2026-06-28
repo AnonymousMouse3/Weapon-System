@@ -34,6 +34,7 @@ public class WeaponPart : ScriptableObject
     [ReadOnly] public float fireRateMultiplier = 1;
     [ReadOnly] public float damageMultiplier = 1;
     [ReadOnly] public float burstCounter;
+    public float endChargeAmount;
     
     [ReadOnly] public GameObject worldAimpointInstance;
     [ReadOnly] public Image worldAimpointInstanceImage;
