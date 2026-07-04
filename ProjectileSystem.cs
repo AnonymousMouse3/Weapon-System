@@ -50,12 +50,12 @@ public class ProjectileSystem : MonoBehaviour
     }
 
     // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Awake()
+    public void InitializeProjectile()
     {
         gameObject.TryGetComponent(out Rigidbody rb);
         if (rb) rb.useGravity = projectileComponent.projectileGravity;
         
-        if (projectileComponent.projectileLifetime > 0f)
+        if (projectileComponent.projectileLifetime > 0f || projectileComponent.destroyInstantly)
         {
             DestroyProjectile(projectileComponent.projectileLifetime);
         }
@@ -176,6 +176,12 @@ public class ProjectileSystem : MonoBehaviour
     {
         trackingTarget = target;
     }
+    
+    public void SetProjectileCharge(float charge)
+    {
+        projectileComponent.projectileCharge = charge;
+        projectileComponent.damageComponent.damageScalar = charge;
+    }
 
     /*public void SetProjectileTeam(string newTeam)
     {
@@ -251,14 +257,6 @@ public class ProjectileSystem : MonoBehaviour
 
         SpawnParticlesOnImpact(other);
 
-        if (projectileComponent.detonateWarheadsOnImpact)
-        {
-            foreach (GameObject warhead in projectileComponent.projectileWarheads)
-            {
-                GameObject newWarhead = Instantiate(warhead, transform.position, Quaternion.identity);
-            }
-        }
-
         if (projectileComponent.triggerOnImpact)
         {
             float projectileVelocityAtImpact = rb.linearVelocity.magnitude;
@@ -322,6 +320,18 @@ public class ProjectileSystem : MonoBehaviour
         DestroyProjectile();
     }
 
+    public void DetonateWarheads()
+    {
+        foreach (GameObject warhead in projectileComponent.projectileWarheads)
+        {
+            if (!warhead) continue;
+            GameObject newWarhead = Instantiate(warhead, transform.position, Quaternion.identity);
+            newWarhead.TryGetComponent(out Explosion explosion);
+
+            explosion.explosionTask = explosion.Explode(0, projectileComponent.projectileCharge);
+        }
+    }
+
     public async void DestroyProjectile(float delay = 0f)
     {
         await MouseTools.AwaitableTimer(delay);
@@ -329,6 +339,11 @@ public class ProjectileSystem : MonoBehaviour
         
         if (beingDestroyed) return;
         beingDestroyed = true;
+        
+        if (projectileComponent.detonateWarheadsOnDestroy)
+        {
+            DetonateWarheads();
+        }
         
         transform.DOKill(this);
         
@@ -344,7 +359,7 @@ public class ProjectileSystem : MonoBehaviour
         {
             foreach (GameObject child in dontDestroyLingeringEffects)
             {
-                child.transform.parent = null;
+                if (child) child.transform.parent = null;
 
                 if (child.TryGetComponent(out TrailRenderer trailRenderer))
                 {

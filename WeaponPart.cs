@@ -20,8 +20,8 @@ public class WeaponPart : ScriptableObject
     [ReadOnly] public WeaponScriptableObject parentWeaponScriptableObject;
     [ReadOnly] public bool isTriggerPulled;
     [ReadOnly] public GameObject target;
+    [ReadOnly] public float lastCharge;
     
-    [ReadOnly] public GameObject currentProjectile;
     [ReadOnly] public List<GameObject> spawnedProjectiles;
     
     [ReadOnly, ConditionalField(nameof(hasChamber))] public bool isChamberLoaded;
@@ -34,14 +34,13 @@ public class WeaponPart : ScriptableObject
     [ReadOnly] public float fireRateMultiplier = 1;
     [ReadOnly] public float damageMultiplier = 1;
     [ReadOnly] public float burstCounter;
-    public float endChargeAmount;
     
     [ReadOnly] public GameObject worldAimpointInstance;
     [ReadOnly] public Image worldAimpointInstanceImage;
     
     
-    [ReadOnly] public FiringState firingState;
-    public enum FiringState
+    [ReadOnly] public CycleState cycleState;
+    public enum CycleState
     {
         Cycling,
         ReadyToFire,
@@ -55,8 +54,16 @@ public class WeaponPart : ScriptableObject
         Reloading,
         ReadyToFire,
     }
+    
+    [ReadOnly] public ChargeState chargeState;
+    public enum ChargeState
+    {
+        Uncharged,
+        Charging,
+        Charged,
+    }
 
-    [FormerlySerializedAs("weaponPartFlags")] [Separator("Technical Settings")]
+    [FormerlySerializedAs("weaponPartFlags")] [Separator("Data")]
     public WeaponPartTags weaponPartTags;
 
     [Flags] public enum WeaponPartTags
@@ -67,13 +74,13 @@ public class WeaponPart : ScriptableObject
         CanModifyDamage = 8,
     }
 
-    [Separator("UI Settings")]
+    [Separator("UI")]
     public GameObject aimpointIcon;
     public bool drawAimpoint;
     public GameObject targetIcon;
     public bool drawTargetIcon;
     
-    [Separator("Aim Settings")]
+    [Separator("Aim")]
     public WeaponAimType aimType;
     public enum WeaponAimType
     {
@@ -82,16 +89,16 @@ public class WeaponPart : ScriptableObject
         GroundOnly
     }
     
-    [Separator("Projectile Settings")]
+    [Separator("Projectiles")]
     public HitscanOrProjectile hitscanOrProjectile;
     public enum HitscanOrProjectile
     {
         Projectile,
         Hitscan
     }
-    public float hitscanRange;
+    [ConditionalField(nameof(hitscanOrProjectile), false, HitscanOrProjectile.Hitscan)] public float hitscanRange;
     
-    [DisplayInspector] public List<GameObject> projectilePrefabs;
+    public List<WeaponProjectile> projectiles;
     public bool requiresTarget;
     public bool passTargetToProjectile;
     public bool updateTargetContinuously;
@@ -100,7 +107,7 @@ public class WeaponPart : ScriptableObject
     public List<PassiveEffectScriptableObject> passiveEffectsAppliedToTarget;
     public List<PassiveEffectScriptableObject> passiveEffectsAppliedToSelf;
 
-    [Separator("Fire Mode Settings")]
+    [Separator("Fire Mode")]
     [SerializeField, Tooltip("Rounds/min")] private float fireRate; // cached variable for editor
     [SerializeField, Tooltip("Time (s)")] private float cooldown; // cached variable for editor
     [Tooltip("Whether this WeaponPart will respect the shared weapon cooldown")] public bool hasIndependentCooldown;
@@ -122,40 +129,56 @@ public class WeaponPart : ScriptableObject
     }
     
     public int burstLength;
+
+    [Separator("Sound")]
+    AudioClip placeholder;
+    
+    [Separator("Knockback")]
+    public bool applyUserKnockback;
+    [ConditionalField(nameof(applyUserKnockback))] public float knockbackForce;
+    [ConditionalField(nameof(applyUserKnockback))] public bool scaleKnockbackWithCharge;
+    [ConditionalField(nameof(applyUserKnockback), nameof(scaleKnockbackWithCharge))] public float maxChargeKnockbackForce;
+    
+    [Separator("Charge")]
+    public bool canCharge;
+    [ConditionalField(nameof(canCharge))] public bool passChargeToProjectile;
+    [ConditionalField(nameof(canCharge))] public float maxChargeTime;
+    [ConditionalField(nameof(canCharge))] public bool allowPartialCharge;
+    [ConditionalField(nameof(canCharge))] public bool autoRelease;
+    [ConditionalField(nameof(canCharge))] public bool allowChargeOnCooldown;
+    [ConditionalField(nameof(canCharge))] public bool allowChargeOnWeaponCooldown;
     
     [Separator("Ammo")]
     public bool usesAmmo;
-    
-    [Separator("Multi-Shot")]
-    public bool consumesMultipleAmmo;
     public int ammoConsumedPerShot = 1;
-    public bool shootsMultipleProjectiles;
-    [ConditionalField(nameof(shootsMultipleProjectiles), false)] public int projectilesPerShot = 1;
-    public float projectileSpreadAngle;
     
     [Separator("Chambers")]
     public bool hasChamber;
-    [ConditionalField(nameof(hasChamber), false)]public List<bool> chambers;
+    [ConditionalField(nameof(hasChamber))]public List<bool> chambers;
     
     [Separator("Magazines")]
     public bool hasMagazine;
-    [ConditionalField(nameof(hasMagazine), false)] public int magazineCapacity;
-    [ConditionalField(nameof(hasMagazine), false)] public bool magazineIsObject;
+    [ConditionalField(nameof(hasMagazine))] public int magazineCapacity;
+    [ConditionalField(nameof(hasMagazine))] public bool magazineIsObject;
     //[ReadOnly(nameof(magazineIsObject), true)] public InventoryItem magazineItem;
     
     [Separator("Reserve Ammo")]
     public bool hasReserveAmmo;
-    [ConditionalField(nameof(hasReserveAmmo), false)] public bool drawsFromReserveAmmoDirectly;
-    [ConditionalField(nameof(hasReserveAmmo), false)] public int maxReserveAmmo;
+    [ConditionalField(nameof(hasReserveAmmo))] public bool drawsFromReserveAmmoDirectly;
+    [ConditionalField(nameof(hasReserveAmmo))] public int maxReserveAmmo;
     [ConditionalField] public int totalAmmoInWeapon;
     
     [Separator("Reload")]
     public bool needsReloading;
-    [ConditionalField(nameof(needsReloading), false)] public InputActionReference reloadAction;
-    [ConditionalField(nameof(needsReloading), false), Tooltip("Time (s)")] public float reloadTime;
-    [ConditionalField(nameof(needsReloading), false)] public bool reloadsRoundsIndividually;
+    [ConditionalField(nameof(needsReloading))] public InputActionReference reloadAction;
+    [ConditionalField(nameof(needsReloading)), Tooltip("Time (s)")] public float reloadTime;
+    [ConditionalField(nameof(needsReloading))] public bool reloadsRoundsIndividually;
     [Tooltip("Determines if the weapon will be reloaded if the player attempts to shoot while empty.")]
-    [ConditionalField(nameof(needsReloading), false)] public bool canQuickReload;
+    [ConditionalField(nameof(needsReloading))] public bool canQuickReload;
+    
+    [Separator("Particles")]
+    public bool hasParticles;
+    [FormerlySerializedAs("onShootParticles")] [ConditionalField(nameof(hasParticles))] public WeaponParticles onShootWeaponParticles;
     
     #if SQUADS
     [Separator("Advanced AI")]
@@ -181,9 +204,9 @@ public class WeaponPart : ScriptableObject
     public bool isSpell;
     
     [FormerlySerializedAs("manaCost")] [ConditionalField(nameof(isSpell), false)] public int aetherCost;
-    [ConditionalField(nameof(isSpell), false)] public int healthCost;
+    [ConditionalField(nameof(isSpell))] public int healthCost;
     
-    [ConditionalField(nameof(isSpell), false)] public SpellSchool spellSchool;
+    [ConditionalField(nameof(isSpell))] public SpellSchool spellSchool;
     
     public enum SpellSchool
     {
@@ -212,38 +235,15 @@ public class WeaponPart : ScriptableObject
     public Task chargeTask;
     public Stopwatch chargeTimer;
     public CancellationTokenSource chargeCTS;
-
-    public void SetupWeaponPart(WeaponScriptableObject weaponScriptableObject = null)
-    {
-        if (weaponScriptableObject) parentWeaponScriptableObject = weaponScriptableObject;
-            
-        //replace with an actual check on start
-        firingState = FiringState.ReadyToFire;
-        reloadState = ReloadState.ReadyToFire;
-            
-        cycleTask = Task.CompletedTask;
-        reloadTask = Task.CompletedTask;
-
-        
-        // for now, default to the first available fire mode
-        foreach (FireModes fireMode in Enum.GetValues(typeof(FireModes)))
-        {
-            if (!availableFireModes.HasFlag(fireMode)) continue;
-            currentFireMode = fireMode;
-            break;
-        }
-
-        if (currentFireMode == 0) currentFireMode = FireModes.SemiAuto;
-        
-        fireRateMultiplier = 1;
-
-        isChamberLoaded = true; // change dynamically
-        currentMagazineAmmo = magazineCapacity;
-        currentReserveAmmo = maxReserveAmmo; // change dynamically in future, obviously
-            
-        if (projectilePrefabs.IsNullOrEmpty()) { Debug.Log("Weapon part has no projectile. Assign one in the inspector."); return; }
-        currentProjectile = projectilePrefabs[0]; // change/remember the default during gameplay? hardcoded for now
-    }
+    
+    
+    [Separator("Deprecated")]
+    // deprecated
+    [FormerlySerializedAs("projectilePrefabs")] [DisplayInspector] public List<GameObject> oldProjectilePrefabs;
+    // deprecated
+    public bool shootsMultipleProjectiles;
+    [ConditionalField(nameof(shootsMultipleProjectiles))] public int projectilesPerShot = 1;
+    public float projectileSpreadAngle;
 
     void OnValidate()
     {
@@ -283,5 +283,41 @@ public class WeaponPart : ScriptableObject
             fireRate = _fireRate;
             _cooldown = cooldown;
         }
+    }
+
+    public void SetupWeaponPart(WeaponScriptableObject weaponScriptableObject = null)
+    {
+        if (weaponScriptableObject) parentWeaponScriptableObject = weaponScriptableObject;
+            
+        //replace with an actual check on start
+        cycleState = CycleState.ReadyToFire;
+        reloadState = ReloadState.ReadyToFire;
+        chargeState = ChargeState.Uncharged;
+        
+        cycleCTS = new CancellationTokenSource();
+        reloadCTS = new CancellationTokenSource();
+        chargeCTS = new CancellationTokenSource();
+            
+        cycleTask = Task.CompletedTask;
+        reloadTask = Task.CompletedTask;
+        chargeTask = Task.CompletedTask;
+        
+        // for now, default to the first available fire mode
+        foreach (FireModes fireMode in Enum.GetValues(typeof(FireModes)))
+        {
+            if (!availableFireModes.HasFlag(fireMode)) continue;
+            currentFireMode = fireMode;
+            break;
+        }
+
+        if (currentFireMode == 0) currentFireMode = FireModes.SemiAuto;
+        
+        fireRateMultiplier = 1;
+
+        isChamberLoaded = true; // change dynamically
+        currentMagazineAmmo = magazineCapacity;
+        currentReserveAmmo = maxReserveAmmo; // change dynamically in future, obviously
+            
+        if (projectiles.IsNullOrEmpty()) { Debug.Log("Weapon part has no projectile. Assign one in the inspector."); return; }
     }
 }

@@ -215,8 +215,8 @@ public class WeaponManager : MonoBehaviour
 
             if (weaponGroup.SwappingWeapon) return;
             if (weaponGroup.WeaponGroupOnCooldown) return;
-            
-            weaponGroup.CurrentWeapon.ProcessWeaponFunction(gameObject, context);
+
+            weaponGroup.CurrentWeapon.ProcessWeaponFunction(context, context.performed);
         }
     }
 

@@ -6,9 +6,8 @@ using System.Threading.Tasks;
 using DG.Tweening;
 using UnityEngine;
 using MyBox;
-using UnityEngine.InputSystem;
+using UnityEditor.Events;
 using UnityEngine.Serialization;
-using UnityEngine.UI;
 
 [Serializable, CreateAssetMenu(fileName = "WeaponScriptableObject", menuName = "Weapon System/Weapon Scriptable Object")]
 // A WeaponObject is a ScriptableObject containing a WeaponComponent (the data structure)
@@ -23,6 +22,7 @@ public class WeaponScriptableObject : ScriptableObject
 
     [Separator("Runtime")]
     [ReadOnly] public GameObject weaponOwner;
+    [ReadOnly] public WeaponCycleState weaponCycleState = WeaponCycleState.ReadyToFire;
     
     [Separator("Info")]
     [FormerlySerializedAs("name")] public string weaponName;
@@ -63,7 +63,6 @@ public class WeaponScriptableObject : ScriptableObject
     public Stopwatch weaponCycleTimer;
     public CancellationTokenSource weaponCycleCTS;
     
-    [ReadOnly] public WeaponCycleState weaponCycleState;
     public enum WeaponCycleState
     {
         Cycling,
@@ -83,7 +82,24 @@ public class WeaponScriptableObject : ScriptableObject
         
         return null;
     }
+    
+    /*void OnValidate()
+    {
+        foreach (WeaponFunction function in WeaponFunctions)
+        {
+            foreach (WeaponFunctionAction functionAction in function.FunctionActions)
+            {
+                if (functionAction.MethodEvent == null) continue;
+                UnityEngine.Debug.Log(functionAction.MethodEvent.GetPersistentTarget(0));
+                UnityEngine.Debug.Log(functionAction.MethodEvent.GetPersistentMethodName(0));
+                //UnityEventTools.AddPersistentListener(functionAction.MethodEvent, functionAction.MethodEvent.);
+            }
+        }
+    }*/
 }
+
+
+
 
 
 // The WeaponComponent class serves as the data structure/template and the base of the weapon system

@@ -1,17 +1,19 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using MyBox;
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.InputSystem;
 using UnityEngine.Serialization;
 using UnityEngine.UI;
+using Object = System.Object;
 
 // Credit to DeadCows' MyBox for additional editor attributes - https://github.com/Deadcows/MyBox/
 
 [Serializable]
 public class WeaponFunction
 {
-    [ReadOnly] public bool FunctionComplete;
     public InputActionReference InputAction;
     public List<WeaponFunctionCondition> FunctionConditions;
     public List<WeaponFunctionAction> FunctionActions;
@@ -21,7 +23,7 @@ public class WeaponFunction
 public class WeaponFunctionCondition
 {
     public string ConditionName;
-    [ReadOnly] public bool Fulfilled = false;
+    [ReadOnly] public bool Fulfilled = true;
     public WeaponFunctionConditionType ConditionType;
 
     [ConditionalField(nameof(ConditionType), false, WeaponFunctionConditionType.CheckOtherCondition)]
@@ -29,22 +31,14 @@ public class WeaponFunctionCondition
     [ConditionalField(nameof(ConditionType), false, WeaponFunctionConditionType.CheckOtherCondition)]
     public bool DesireCompleted;
 
-    [ConditionalField(nameof(ConditionType), false, WeaponFunctionConditionType.AnyProjectileActive)]
+    [ConditionalField(nameof(ConditionType), false, WeaponFunctionConditionType.AnyProjectileActive, WeaponFunctionCondition.WeaponFunctionConditionType.WeaponPartCharged)]
     public WeaponPart WeaponPart;
-
-    [ConditionalField(nameof(ConditionType), false, WeaponFunctionConditionType.ChargedForTime)]
-    public float ChargeTime;
-    [ConditionalField(nameof(ConditionType), false, WeaponFunctionConditionType.ChargedForTime)]
-    public bool AllowPartialCharge;
-
-    [ConditionalField(nameof(ConditionType), false, WeaponFunctionConditionType.ChargedForTime)]
-    public bool AutoRelease;
 
     public enum WeaponFunctionConditionType
     {
         Nothing,
         AnyProjectileActive,
-        ChargedForTime,
+        WeaponPartCharged,
         CheckOtherCondition,
     }
 }
@@ -52,16 +46,28 @@ public class WeaponFunctionCondition
 [Serializable]
 public class WeaponFunctionAction
 {
-    public WeaponFunctionActions FunctionActions;
-    [SerializeReference, ConditionalField(nameof(FunctionActions), false, WeaponFunctionActions.UseWeaponPart)]
+    public WeaponFunctionActionType functionActionType;
+    [SerializeReference, ConditionalField(nameof(functionActionType), false, WeaponFunctionActionType.UseWeaponPart)]
     public WeaponPart WeaponPart;
+
+    [SerializeField, ConditionalField(nameof(functionActionType), false, WeaponFunctionActionType.InvokeMethod)]
+    public UnityEvent MethodEvent;
     
-    public enum WeaponFunctionActions
+    public enum WeaponFunctionActionType
     {
-        UseWeaponPart
+        UseWeaponPart,
+        InvokeMethod
     }
 }
 
+[Serializable]
+public class WeaponProjectile
+{
+    public GameObject Projectile;
+    
+    [Min(1)] public int Count = 1;
+    public float SpreadAngle;
+}
 
 [Serializable]
 public class ParticlesAndLayers
@@ -71,24 +77,115 @@ public class ParticlesAndLayers
 }
 
 [Serializable]
+public class WeaponParticles
+{
+    public ParticleSystem particles;
+    public bool spawnAsChild;
+    public bool scaleWithCharge;
+
+    [ConditionalField(nameof(scaleWithCharge))] public ParticleSystem.MinMaxCurve minChargeStartSpeed;
+    [ConditionalField(nameof(scaleWithCharge))] public ParticleSystem.MinMaxCurve maxChargeStartSpeed;
+    [ConditionalField(nameof(scaleWithCharge))] public ParticleSystem.MinMaxCurve minChargeBurstSize;
+    [ConditionalField(nameof(scaleWithCharge))] public ParticleSystem.MinMaxCurve maxChargeBurstSize;
+
+
+    public ParticleSystem.MinMaxCurve InterpolateMinMaxCurve(ParticleSystem.MinMaxCurve a, ParticleSystem.MinMaxCurve b, float t)
+    {
+        float a1 = 0;
+        float a2 = 0;
+        float b1 = 0;
+        float b2 = 0;
+        
+        switch (a.mode)
+        {
+            case ParticleSystemCurveMode.Constant:
+                a1 = a.constant;
+                a2 = a.constant;
+                break;
+            case ParticleSystemCurveMode.Curve:
+                
+                break;
+            case ParticleSystemCurveMode.TwoCurves:
+                
+                break;
+            case ParticleSystemCurveMode.TwoConstants:
+                a1 = a.constantMin;
+                a2 = a.constantMax;
+                break;
+        }
+
+        switch (b.mode)
+        {
+            case ParticleSystemCurveMode.Constant:
+                b1 = b.constant;
+                b2 = b.constant;
+                break;
+            case ParticleSystemCurveMode.Curve:
+                
+                break;
+            case ParticleSystemCurveMode.TwoCurves:
+                
+                break;
+            case ParticleSystemCurveMode.TwoConstants:
+                b1 = b.constantMin;
+                b2 = b.constantMax;
+                break;
+        }
+        
+        return new ParticleSystem.MinMaxCurve(Mathf.Lerp(a1, b1, t), Mathf.Lerp(a2, b2, t));
+    }
+}
+
+[Serializable]
 public class ExplosionComponent
 {
-    public float explosionRadius;
-    public bool scaleDamageWithDistance;
-    
-    public int explosionArmourPenetration;
-    
-    public bool destroySelf;
+    [HideInInspector] public float explosionScalar;
+    public bool scaleExplosion;
+
     public float explosionDelay;
     public LayerMask layersToHit;
     public int maxTargetsChecked;
+    public bool destroySelf;
+    
+    public ExplosionShape explosionShape;
+    
+    private bool ScaleAndSphere() => explosionShape == ExplosionShape.Sphere && scaleExplosion;
+    [ConditionalField(nameof(explosionShape), false, ExplosionShape.Sphere)] public float explosionRadius;
+    [ConditionalField(true, nameof(ScaleAndSphere))] public float explosionRadiusMax;
+    
+    private bool ScaleAndCustom() => explosionShape == ExplosionShape.CustomCollider && scaleExplosion;
+    [ConditionalField(nameof(explosionShape), false, ExplosionShape.CustomCollider)] public Collider explosionHitbox;
+    [ConditionalField(true, nameof(ScaleAndCustom))] public Collider explosionHitboxMax;
+    
+    [Separator("Damage")]
+    public DamageComponent damageComponent;
+    [ReadOnly] public AnimationCurve damageFalloff;
+    
+    [Separator("Knockback")]
+    public bool applyKnockback;
+    [ConditionalField(nameof(applyKnockback))] public float knockbackForce;
+    [ReadOnly, ConditionalField(nameof(applyKnockback))] public AnimationCurve knockbackFalloff;
+
+    [Separator("Particles")]
+    public bool hasParticles;
+    [ConditionalField(nameof(hasParticles))] public WeaponParticles explosionParticles;
+    
+    public enum ExplosionShape
+    {
+        Sphere,
+        CustomCollider
+    }
 }
 
 [Serializable]
 public class DamageComponent
 {
+    [HideInInspector] public float damageScalar;
+    public bool scaleDamage;
     [Separator("Main Settings")]
     public float baseDamage;
+    
+    [ConditionalField(nameof(scaleDamage))] public float maxDamage;
     [FormerlySerializedAs("damageType")] public DamageTags damageTags;
     public DamageElement damageElement;
     public List<PassiveEffectScriptableObject> passiveEffectsAppliedToTarget;
@@ -104,6 +201,7 @@ public class DamageComponent
     
     public enum DamageElement
     {
+        None,
         Fire,
         Water,
         Ice,
@@ -129,12 +227,13 @@ public class DamageComponent
 public class ProjectileComponent
 {
     [ReadOnly] public long projectileActiveTime;
+    [ReadOnly] public float projectileCharge;
     
     [Tooltip("The damage component of the current projectile.")]
     public DamageComponent damageComponent;
     [Tooltip("The GameObject(s) that the projectile is able to spawn on impact, during flight, etc.")]
     public List<GameObject> projectileWarheads;
-    public bool detonateWarheadsOnImpact;
+    [FormerlySerializedAs("detonateWarheadsOnImpact")] public bool detonateWarheadsOnDestroy;
     [Tooltip("The on-hit particle system of the projectile.")]
     public List<ParticlesAndLayers> onHitParticles;
     
@@ -149,6 +248,7 @@ public class ProjectileComponent
     }
     
     [Tooltip("Time (s)")] public float projectileLifetime;
+    public bool destroyInstantly;
     public bool destroyOnImpact;
     public bool triggerOnImpact;
     public bool spawnAsChildOfWeapon;

@@ -1,9 +1,0 @@
-<ui:UXML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" noNamespaceSchemaLocation="../../../../UIElementsSchema/UIElements.xsd" editor-extension-mode="True">
-    <ui:VisualElement style="flex-grow: 1;">
-        <ui:Label text="Weapon Action" name="Label" style="-unity-text-align: upper-center; font-size: 14px; padding-bottom: 2px; padding-top: 2px;" />
-        <uie:PropertyField data-source="project://database/Assets/Scripts/Weapon-System/Editor/Revolver%20Primary%20Fire.asset?fileID=11400000&amp;guid=b64ca105066bca24ca6ab1a850e2ff97&amp;type=2#Revolver Primary Fire" binding-path="Name" />
-        <ui:Label text="Action Conditions" name="Label" style="-unity-text-align: upper-center; font-size: 12px; padding-bottom: 2px; padding-top: 6px;" />
-        <ui:ListView virtualization-method="DynamicHeight" binding-path="ActionConditions" show-add-remove-footer="true" show-bound-collection-size="false" item-template="project://database/Assets/Scripts/Weapon-System/UXML/WeaponActionConditionsVisualTree.uxml?fileID=9197481963319205126&amp;guid=2dbf214ccb7a2784a804ab2714b0515b&amp;type=3#WeaponActionConditionsVisualTree" show-alternating-row-backgrounds="All" show-border="true" name="ActionConditions" />
-        <ui:ListView binding-path="ActionsToTake" show-alternating-row-backgrounds="All" virtualization-method="DynamicHeight" show-add-remove-footer="true" show-bound-collection-size="false" show-border="true" />
-    </ui:VisualElement>
-</ui:UXML>
