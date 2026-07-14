@@ -292,6 +292,7 @@ public class ProjectileComponent
     #if LIQUID_SYSTEM
     [Separator("Liquid Settings")]
     public bool createsLiquid;
+    [ConditionalField(nameof(createsLiquid), false)] public bool isSplatter;
     [ConditionalField(nameof(createsLiquid), false)] public int radius;
     [ConditionalField(nameof(createsLiquid), false)] public Liquid liquidType;
     #endif

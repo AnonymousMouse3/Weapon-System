@@ -272,16 +272,32 @@ public class ProjectileSystem : MonoBehaviour
             if (other.gameObject.tag == "Liquid")
             {
                 LiquidV2Manager liquidManager = FindFirstObjectByType<LiquidV2Manager>();
-
-                liquidManager.SpawnLiquid(transform.position, projectileComponent.liquidType, projectileComponent.radius);
+                LiquidV2AdditionalMethods liquidAdditional = FindFirstObjectByType<LiquidV2AdditionalMethods>();
+                
+                if (!projectileComponent.isSplatter)
+                {
+                    liquidManager.SpawnLiquid(transform.position, projectileComponent.liquidType, projectileComponent.radius);              
+                }
+                else
+                {
+                    liquidAdditional.SpawnLiquidSplash(transform.position, projectileComponent.liquidType, projectileComponent.radius); 
+                }                
 
                 projectileComponent.createsLiquid = false;
             }
             else if (other.gameObject.tag == "Floor")
             {
                 LiquidV2Manager liquidManager = FindFirstObjectByType<LiquidV2Manager>();
+                LiquidV2AdditionalMethods liquidAdditional = FindFirstObjectByType<LiquidV2AdditionalMethods>();
 
-                liquidManager.SpawnLiquid(transform.position, projectileComponent.liquidType, projectileComponent.radius); 
+                if (!projectileComponent.isSplatter)
+                {
+                    liquidManager.SpawnLiquid(transform.position, projectileComponent.liquidType, projectileComponent.radius);              
+                }
+                else
+                {
+                    liquidAdditional.SpawnLiquidSplash(transform.position, projectileComponent.liquidType, projectileComponent.radius); 
+                }
 
                 projectileComponent.createsLiquid = false;               
             }
