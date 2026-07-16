@@ -152,6 +152,7 @@ public class AimingSystem : MonoBehaviour
 
             foreach (WeaponPart weaponPart in weaponScriptableObject.WeaponParts)
             {
+                if (!weaponPart.firePoint) continue;
                 PlaceWorldAimpoint(weaponPart, weaponScriptableObject);
             
                 switch (weaponPart.aimType)

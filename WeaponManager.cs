@@ -117,7 +117,10 @@ public class WeaponManager : MonoBehaviour
         #endif
         
         if (weaponGroups.IsNullOrEmpty()) return;
+    }
 
+    void Start()
+    {
         foreach (WeaponGroup weaponGroup in weaponGroups)
         {
             if (weaponGroup.WeaponPrefabs.IsNullOrEmpty()) continue;
@@ -335,8 +338,8 @@ public class WeaponManager : MonoBehaviour
             oldWeaponUnequipTime = oldWeapon.weaponScriptableObject.weaponUnequipTime;
         }
         
-        SetupAndInstantiateWeapon(weaponGroup, weaponGroup.WeaponPrefabs[(int)weaponIndex]);
-        
+        SetupAndInstantiateWeapon(weaponGroup, weaponGroup.WeaponPrefabs[weaponIndex]);
+
         if (weaponGroup.name == "Spells")
         {
             OnCurrentSpellChange?.Invoke(weaponGroup.CurrentWeapon.weaponScriptableObject);

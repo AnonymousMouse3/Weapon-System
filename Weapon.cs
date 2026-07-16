@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using DG.Tweening;
 using MouseLib;
 using MyBox;
+using Unity.Cinemachine;
 using Unity.VisualScripting;
 using UnityEditor.Events;
 using UnityEngine;
@@ -35,6 +36,7 @@ public class Weapon : MonoBehaviour
 
     public static event Action<GameObject, WeaponScriptableObject> OnWeaponInstantiated; // contains the new instance of the weapon
     public static event Action OnWeaponShoot;
+    public static event Action<float> OnApplyAimPunch;
     public static event Action<Weapon> OnWeaponRelease;
     public static event Action<WeaponPart, float> OnAttackSpeedModifierChange;
     public static event Action<GameObject, WeaponPart> OnSpellCast;
@@ -124,6 +126,7 @@ public class Weapon : MonoBehaviour
         }
 
         weaponScriptableObject.WeaponParts = newWeaponParts;
+        TryGetComponent(out weaponScriptableObject.weaponRecoilImpulseSource);
         
         #if SPELL_SYSTEM
         weaponScriptableObject.weaponOwner.TryGetComponent(out weaponScriptableObject.spellManager);
@@ -532,22 +535,22 @@ public class Weapon : MonoBehaviour
             
             if (!weaponPart.onShootWeaponParticles.spawnAsChild) particles = Instantiate(weaponPart.onShootWeaponParticles.particles, weaponPart.firePoint.transform.position, weaponPart.firePoint.transform.rotation);
             else particles = Instantiate(weaponPart.onShootWeaponParticles.particles, weaponPart.firePoint.transform);
-            
-            
-            if (!weaponPart.onShootWeaponParticles.scaleWithCharge) return;
-            
-            ParticleSystem.MainModule main = particles.main;
-            ParticleSystem.MinMaxCurve startSpeed = weaponPart.onShootWeaponParticles.InterpolateMinMaxCurve(minChargeStartSpeed, maxChargeStartSpeed, weaponPart.lastCharge / 100);
-            startSpeed.mode = ParticleSystemCurveMode.TwoConstants;
-            main.startSpeed = startSpeed;
-            
-            ParticleSystem.MinMaxCurve burstSize = weaponPart.onShootWeaponParticles.InterpolateMinMaxCurve(minChargeBurstSize, maxChargeBurstSize, weaponPart.lastCharge / 100);
-            
-            particles.emission.SetBursts(new[]
-            {
-                new ParticleSystem.Burst(0.0f, burstSize, 1, 0.03f)
-            });
 
+
+            if (weaponPart.onShootWeaponParticles.scaleWithCharge)
+            {
+                ParticleSystem.MainModule main = particles.main;
+                ParticleSystem.MinMaxCurve startSpeed = weaponPart.onShootWeaponParticles.InterpolateMinMaxCurve(minChargeStartSpeed, maxChargeStartSpeed, weaponPart.lastCharge / 100);
+                startSpeed.mode = ParticleSystemCurveMode.TwoConstants;
+                main.startSpeed = startSpeed;
+            
+                ParticleSystem.MinMaxCurve burstSize = weaponPart.onShootWeaponParticles.InterpolateMinMaxCurve(minChargeBurstSize, maxChargeBurstSize, weaponPart.lastCharge / 100);
+            
+                particles.emission.SetBursts(new[]
+                {
+                    new ParticleSystem.Burst(0.0f, burstSize, 1, 0.03f)
+                });
+            }
         }
 
         if (weaponPart.applyUserKnockback)
@@ -557,6 +560,15 @@ public class Weapon : MonoBehaviour
             float knockbackForce = weaponPart.knockbackForce;
             if (weaponPart.scaleKnockbackWithCharge) knockbackForce = Mathf.Lerp(weaponPart.knockbackForce, weaponPart.maxChargeKnockbackForce, weaponPart.lastCharge / 100);
             if (ownerRB) ownerRB.AddForce(-weaponPart.firePoint.transform.forward * knockbackForce, ForceMode.Impulse);
+        }
+
+        if (weaponPart.hasRecoil && weaponScriptableObject.weaponRecoilImpulseSource)
+        {
+            OnApplyAimPunch?.Invoke(weaponPart.aimPunch);
+            
+            CinemachineImpulseSource impulseSource = weaponScriptableObject.weaponRecoilImpulseSource;
+            impulseSource.ImpulseDefinition = weaponPart.impulseDefinition;
+            impulseSource.GenerateImpulse(weaponPart.recoil);
         }
         
         #if SPELL_SYSTEM

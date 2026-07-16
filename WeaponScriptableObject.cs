@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using DG.Tweening;
 using UnityEngine;
 using MyBox;
+using Unity.Cinemachine;
 using UnityEditor.Events;
 using UnityEngine.Serialization;
 
@@ -23,6 +24,8 @@ public class WeaponScriptableObject : ScriptableObject
     [Separator("Runtime")]
     [ReadOnly] public GameObject weaponOwner;
     [ReadOnly] public WeaponCycleState weaponCycleState = WeaponCycleState.ReadyToFire;
+    [ReadOnly] public CinemachineImpulseSource weaponRecoilImpulseSource;
+    [ReadOnly] public CinemachineExternalImpulseListener weaponRecoilListener;
     
     [Separator("Info")]
     [FormerlySerializedAs("name")] public string weaponName;

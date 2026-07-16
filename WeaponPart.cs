@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using MyBox;
+using Unity.Cinemachine;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Serialization;
@@ -176,9 +177,15 @@ public class WeaponPart : ScriptableObject
     [Tooltip("Determines if the weapon will be reloaded if the player attempts to shoot while empty.")]
     [ConditionalField(nameof(needsReloading))] public bool canQuickReload;
     
+    [Separator("Recoil")]
+    public bool hasRecoil;
+    [ConditionalField(nameof(hasRecoil))] public Vector3 recoil;
+    [ConditionalField(nameof(hasRecoil))] public float aimPunch;
+    [ConditionalField(nameof(hasRecoil))] public CinemachineImpulseDefinition impulseDefinition;
+    
     [Separator("Particles")]
     public bool hasParticles;
-    [FormerlySerializedAs("onShootParticles")] [ConditionalField(nameof(hasParticles))] public WeaponParticles onShootWeaponParticles;
+    [ConditionalField(nameof(hasParticles))] public WeaponParticles onShootWeaponParticles;
     
     #if SQUADS
     [Separator("Advanced AI")]
