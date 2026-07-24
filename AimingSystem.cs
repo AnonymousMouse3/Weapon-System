@@ -299,13 +299,14 @@ public class AimingSystem : MonoBehaviour
             weaponPart.target = target.gameObject;
         }
         
+        
         if (weaponPart.target == previousTarget) return;
 
-        TargetableObject.onDisableCanvas?.Invoke(gameObject, previousTarget, weaponPart.targetIcon);
+        if (weaponPart.targetIcon && weaponPart.drawTargetIcon) TargetableObject.onDisableCanvas?.Invoke(gameObject, previousTarget, weaponPart.targetIcon);
         OnTargetLost?.Invoke(gameObject, previousTarget);
         
         if (!weaponPart.target) return;
-        TargetableObject.onEnableCanvas?.Invoke(gameObject, weaponPart.target.gameObject, weaponPart.targetIcon);
+        if (weaponPart.targetIcon && weaponPart.drawTargetIcon) TargetableObject.onEnableCanvas?.Invoke(gameObject, weaponPart.target.gameObject, weaponPart.targetIcon);
         OnTargetLock?.Invoke(gameObject, weaponPart.target.gameObject);
     }
 

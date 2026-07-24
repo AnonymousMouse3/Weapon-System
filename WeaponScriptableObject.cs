@@ -61,7 +61,8 @@ public class WeaponScriptableObject : ScriptableObject
     [SerializeField] public bool debugWeapon;
     
     public Tween weaponTween;
-    
+
+    public float weaponCooldown;
     public Task weaponCycleTask;
     public Stopwatch weaponCycleTimer;
     public CancellationTokenSource weaponCycleCTS;

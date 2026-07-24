@@ -81,17 +81,20 @@ public class Weapon : MonoBehaviour
         // Create an instance of the WeaponObject so we don't affect the base stats
         WeaponScriptableObject newWeaponScriptableObject = Instantiate(weaponScriptableObject);
         weaponScriptableObject = newWeaponScriptableObject;
+        weaponScriptableObject.weaponCycleTask = Task.CompletedTask;
         weaponScriptableObject.weaponCycleState = WeaponScriptableObject.WeaponCycleState.ReadyToFire;
         
         List<WeaponPart> newWeaponParts = new List<WeaponPart>();
         foreach (WeaponPart weaponPart in weaponScriptableObject.WeaponParts)
         {
+            
             WeaponPart newWeaponPart = Instantiate(weaponPart);
             newWeaponParts.Add(newWeaponPart);
 
             // replace references
             foreach (WeaponFunction weaponFunction in weaponScriptableObject.WeaponFunctions)
             {
+                if (weaponFunction.MainWeaponPart == weaponPart) weaponFunction.MainWeaponPart = newWeaponPart;
                 foreach (WeaponFunctionCondition functionCondition in weaponFunction.FunctionConditions)
                 {
                     if (functionCondition.WeaponPart != weaponPart) continue;
@@ -152,7 +155,7 @@ public class Weapon : MonoBehaviour
         if (pressOrRelease)
         {
             currentWeaponPart.isTriggerPulled = true;
-            TryFireWeaponLoop(currentWeaponPart);
+            WeaponCycleLoop(currentWeaponPart);
             // set weapon action to completed
         }
         else
@@ -161,8 +164,7 @@ public class Weapon : MonoBehaviour
             OnWeaponRelease?.Invoke(this);
         }
     }
-
-    // to replace ShootWeaponDirectly
+    
     public void ShootSimpleWeapon()
     {
         if (simpleWeaponPart) TryFireWeapon(simpleWeaponPart);
@@ -170,15 +172,28 @@ public class Weapon : MonoBehaviour
 
     public void ShootWeaponPartDirectly(WeaponPart weaponPart, bool bypassCooldown = false, float replacementCooldown = 0)
     {
-        TryFireWeapon(weaponPart, bypassCooldown, replacementCooldown);
+        WeaponCycleLoop(weaponPart, bypassCooldown, replacementCooldown);
     }
 
-    public void ProcessWeaponFunction(InputAction.CallbackContext context, bool pressOrRelease)
+    public async void ProcessWeaponFunction(InputAction.CallbackContext context, bool inputPressed)
     {
         foreach (WeaponFunction weaponFunction in weaponScriptableObject.WeaponFunctions)
         {
+            bool inputBuffered = false;
+            
             if (!weaponFunction.InputAction) continue;
             if (weaponFunction.InputAction.action != context.action) continue;
+            
+            /*if (weaponFunction.MainWeaponPart.cycleTask != Task.CompletedTask)
+            {
+                // buffer an input if it was pressed within 0.25s before the cooldown ends
+                if (weaponFunction.MainWeaponPart._cooldown * 1000 - weaponFunction.MainWeaponPart.cycleTimer.ElapsedMilliseconds <= 1000)
+                {
+                    Debug.Log("cycle buffered!");
+                    inputBuffered = true;
+                    await weaponFunction.MainWeaponPart.cycleTask;
+                }
+            }*/
             
             bool canShoot = true;
             bool cancelChargeOnceTriggered = false;
@@ -191,29 +206,30 @@ public class Weapon : MonoBehaviour
                 switch (functionCondition.ConditionType)
                 {
                     case WeaponFunctionCondition.WeaponFunctionConditionType.Nothing:
-                        functionCondition.Fulfilled = pressOrRelease;
+                        functionCondition.Fulfilled = inputPressed;
                         break;
                 
                     case WeaponFunctionCondition.WeaponFunctionConditionType.WeaponPartCharged:
                         // only start one task at a time todo TEST
                         
-                        if (pressOrRelease && weaponPart.chargePercent > 0) functionCondition.Fulfilled = false;
-                        if (!pressOrRelease && weaponPart.chargePercent <= 0) functionCondition.Fulfilled = false;
+                        if (inputPressed && weaponPart.chargePercent > 0) functionCondition.Fulfilled = false;
+                        if (!inputPressed && weaponPart.chargePercent <= 0) functionCondition.Fulfilled = false;
                         
-                        if (pressOrRelease && weaponPart.chargePercent <= 0)
+                        if (inputPressed && weaponPart.chargePercent <= 0)
                         {
+                            if (!weaponPart.allowChargeOnCooldown && weaponPart.cycleState != WeaponPart.CycleState.ReadyToFire) return;
+                            
                             // don't shoot, start charge
                             functionCondition.Fulfilled = false;
                             
                             CancelCharge(weaponPart.chargeCTS, weaponPart);
                             weaponPart.chargeCTS = new CancellationTokenSource();
-                            weaponPart.chargeTask = WaitForCharge(weaponPart.chargeCTS.Token, context, pressOrRelease, weaponPart, functionCondition, weaponPart.autoRelease);
+                            weaponPart.chargeTask = WaitForCharge(weaponPart.chargeCTS.Token, context, inputPressed, weaponPart, functionCondition, weaponPart.autoRelease);
                         }
 
-                        if (!pressOrRelease && weaponPart.chargePercent > 0)
+                        if (!inputPressed && weaponPart.chargePercent > 0)
                         {
                             // cancel charge after shooting, shoot if allowed
-
                             if (!weaponPart.allowPartialCharge && weaponPart.chargePercent < 100) functionCondition.Fulfilled = false;
                             cancelChargeOnceTriggered = true;
                         }
@@ -222,7 +238,6 @@ public class Weapon : MonoBehaviour
 
                 if (!functionCondition.Fulfilled) canShoot = false;
             }
-
             
             // if all FunctionConditions are satisfied, trigger all FunctionActions
             foreach (WeaponFunctionAction functionAction in weaponFunction.FunctionActions)
@@ -235,7 +250,7 @@ public class Weapon : MonoBehaviour
                         if (canShoot)
                         {
                             weaponPart.isTriggerPulled = true;
-                            TryFireWeaponLoop(weaponPart);
+                            WeaponCycleLoop(weaponPart);
                         }
                         else
                         {
@@ -256,81 +271,6 @@ public class Weapon : MonoBehaviour
         }
     }
 
-    
-    // check the status of the input action at a fast interval - note that this will not add input lag or affect anything on the player's end
-    // for example - charging an example weapon takes 2 seconds
-    // the player gives the input to start charging and holds down the input - this happens "instantly"
-    // (hardware and processing speed add trivial amounts of delay but that's not relevant)
-    //
-    // the input begins this loop, which checks the status of that action every 0.05s
-    // if the player releases their input at any time, it does not need to wait 0.05s before being processed - it still happens instantly
-    // since all this loop does is set a flag - the rest of the code simply checks if the flag is true or false
-    //
-    // the worst case is that the player has already waited 2 seconds - the weapon should be charged
-    // but this could introduce a 0.05s delay to the "charged" flag flipping true - so at most, a 2s charge becomes 2.05s
-    // which is trivial - charge times are already tough to mentally predict, so this should have minimal gameplay impact
-    // this is opposed to a 0.05s *input delay* - which would have an appreciable effect on gameplay, even if small
-    private async Task WaitForCharge(CancellationToken ct, InputAction.CallbackContext context, bool pressOrRelease, WeaponPart weaponPart, WeaponFunctionCondition functionCondition, bool autoRelease)
-    {
-        if (!weaponPart.allowChargeOnCooldown && weaponPart.cycleState == WeaponPart.CycleState.Cycling) return;
-        if (!weaponPart.allowChargeOnWeaponCooldown && weaponPart.parentWeaponScriptableObject.weaponCycleState == WeaponScriptableObject.WeaponCycleState.Cycling) return;
-        
-        
-        for (float f = 0; f < weaponPart.maxChargeTime * 1000; f += 0.05f)
-        {
-            if (ct.IsCancellationRequested) break;
-            
-            weaponPart.chargeState = WeaponPart.ChargeState.Charging;
-            weaponPart.chargePercent = Mathf.Clamp(f / weaponPart.maxChargeTime * 100, 0, 100);
-            weaponPart.lastCharge = weaponPart.chargePercent;
-            
-            if (weaponScriptableObject.debugWeapon) Debug.Log($"{context.action.name} - {f}");
-            if (weaponScriptableObject.debugWeapon) Debug.Log($"{weaponPart.name} Charge - {weaponPart.chargePercent}%");
-            if (weaponScriptableObject.debugWeapon) Debug.Log($"{weaponPart.name} Last Charge - {weaponPart.lastCharge}%");
-            
-            if (f >= weaponPart.maxChargeTime)
-            {
-                weaponPart.chargeState = WeaponPart.ChargeState.Charged;
-                weaponPart.chargePercent = 100; // check
-                weaponPart.lastCharge = weaponPart.chargePercent;
-                
-                // simulate an input with opposite press/release value
-                if (autoRelease) ProcessWeaponFunction(context, !pressOrRelease);
-                
-                break;
-            }
-            await MouseTools.AwaitableTimer(0.05f);
-        }
-    }
-
-    public void CancelCharge(CancellationTokenSource cts, WeaponPart weaponPart)
-    {
-        if (weaponPart.chargeState == WeaponPart.ChargeState.Uncharged || weaponPart.chargePercent == 0) return;
-        
-        weaponPart.chargeCTS.Cancel();
-        weaponPart.chargePercent = 0;
-        weaponPart.chargeState = WeaponPart.ChargeState.Uncharged;
-    }
-
-    public void ProcessWeaponReloadAction(GameObject validationObject, InputAction action)
-    {
-        foreach (WeaponPart weaponPart in weaponScriptableObject.WeaponParts)
-        {
-            if (weaponPart.reloadAction.action != action) continue;
-            StartReload(weaponPart, weaponScriptableObject.weaponOwner);
-        }
-    }
-
-    public void ReleaseTrigger(GameObject validationObject)
-    {
-        if (validationObject != weaponScriptableObject.weaponOwner) return;
-        
-        foreach (WeaponPart weaponPart in weaponScriptableObject.WeaponParts)
-        {
-            weaponPart.isTriggerPulled = false;
-            OnWeaponRelease?.Invoke(this);
-        }
-    }
 
     /*private WeaponPart CheckWeaponFunctionConditions(WeaponFunction weaponFunction)
     {
@@ -360,42 +300,9 @@ public class Weapon : MonoBehaviour
         return null;
     }*/
 
-    private bool AnyProjectileActiveCheck(WeaponFunctionCondition functionCondition)
+    private async void WeaponCycleLoop(WeaponPart weaponPart, bool bypassCooldown = false, float replacementCooldown = 0)
     {
-        return !functionCondition.WeaponPart.projectiles.IsNullOrEmpty();
-    }
-
-    private void ChargeTimeCheck()
-    {
-        
-    }
-
-    private bool FunctionCompleteCheck(WeaponFunctionCondition functionCondition)
-    {
-        WeaponFunctionCondition conditionToCheck = weaponScriptableObject.GetFunctionConditionByName(functionCondition.ConditionToMonitor);
-        return conditionToCheck.Fulfilled;
-    }
-
-    private async void TryFireWeaponLoop(WeaponPart weaponPart)
-    {
-        if (!weaponPart.reloadTask.IsCompleted && weaponPart._cooldown * 1000 - weaponPart.reloadTimer.ElapsedMilliseconds <= weaponPart.inputBufferTime * 1000)
-        {
-            await weaponPart.reloadTask;
-        }
-        
-        // if the weapon is still on cooldown, but the input is given within the buffer period, await the task to buffer the next shot
-        if (!weaponPart.cycleTask.IsCompleted && weaponPart._cooldown * 1000 - weaponPart.cycleTimer.ElapsedMilliseconds <= weaponPart.inputBufferTime * 1000)
-        {
-            await weaponPart.cycleTask;
-        }
-        
-        if (weaponPart.cycleTask.IsCompleted && weaponPart.reloadTask.IsCompleted)
-        {
-            // Prevent the loop from looping too fast
-            await MouseTools.AwaitableTimer(0.001f);
-        }
-
-        if (!weaponPart.isTriggerPulled)
+        if (!weaponPart.isTriggerPulled && weaponPart.currentFireMode != WeaponPart.FireModes.SemiAuto)
         {
             weaponPart.burstCounter = 0;
             return;
@@ -404,16 +311,16 @@ public class Weapon : MonoBehaviour
         switch (weaponPart.currentFireMode)
         {
             case WeaponPart.FireModes.SemiAuto:
-                TryFireWeapon(weaponPart);
+                TryFireWeapon(weaponPart, bypassCooldown, replacementCooldown);
                 break;
             
             case WeaponPart.FireModes.Burst:
-                TryFireWeapon(weaponPart);
+                TryFireWeapon(weaponPart, bypassCooldown, replacementCooldown);
                 weaponPart.burstCounter++;
 
                 if (weaponPart.burstCounter < weaponPart.burstLength)
                 {
-                    TryFireWeaponLoop(weaponPart);
+                    WeaponCycleLoop(weaponPart);
                     return;
                 }
                 
@@ -422,9 +329,12 @@ public class Weapon : MonoBehaviour
                 break;
             
             case WeaponPart.FireModes.FullAuto:
-                TryFireWeapon(weaponPart);
+                TryFireWeapon(weaponPart, bypassCooldown, replacementCooldown);
+
+                if (!weaponPart.isTriggerPulled) break;
+                await MouseTools.AwaitableTimer(weaponPart._cooldown);
                 
-                TryFireWeaponLoop(weaponPart);
+                WeaponCycleLoop(weaponPart);
                 break;
         }
     }
@@ -484,12 +394,7 @@ public class Weapon : MonoBehaviour
     private void CouldNotFire(string reason, bool warning = false)
     {
         // play empty weapon click, etc.
-        if (warning)
-        {
-            if (weaponScriptableObject.debugWeapon) Debug.LogWarning(reason);
-            return;
-        }
-        
+        if (warning) { if (weaponScriptableObject.debugWeapon) Debug.LogWarning(reason); return; }
         if (weaponScriptableObject.debugWeapon) Debug.Log(reason);
     }
     
@@ -585,7 +490,7 @@ public class Weapon : MonoBehaviour
         
         // make into method?
         weaponPart.cycleTimer ??= new Stopwatch();
-        weaponPart.cycleTimer.Start();
+        weaponPart.cycleTimer.Restart();
         
         weaponPart.cycleCTS ??= new CancellationTokenSource();
         weaponPart.cycleTask = CycleWeaponPart(weaponPart, weaponPart.cycleCTS.Token, bypassCooldown, replacementCooldown);
@@ -599,6 +504,7 @@ public class Weapon : MonoBehaviour
             weaponScriptableObject.weaponCycleCTS ??= new CancellationTokenSource();
             weaponScriptableObject.weaponCycleTask = CycleWeapon(weaponScriptableObject, weaponPart, weaponScriptableObject.weaponCycleCTS.Token);
             weaponScriptableObject.weaponCycleTask.ContinueWith(x => { weaponPart.cycleTimer.Stop(); });
+            weaponScriptableObject.weaponCooldown = weaponPart.weaponCooldown;
         }
         
         // Remove ammo from the weapon (if it uses ammo)
@@ -672,8 +578,8 @@ public class Weapon : MonoBehaviour
 
     private void SpawnProjectile(WeaponPart weaponPart, WeaponProjectile projectileToSpawn, Transform firePoint)
     {
-        float randomSpreadAngleX = UnityEngine.Random.Range(-projectileToSpawn.SpreadAngle, projectileToSpawn.SpreadAngle);
-        float randomSpreadAngleY = UnityEngine.Random.Range(-projectileToSpawn.SpreadAngle, projectileToSpawn.SpreadAngle);
+        float randomSpreadAngleX = Random.Range(-projectileToSpawn.SpreadAngle, projectileToSpawn.SpreadAngle);
+        float randomSpreadAngleY = Random.Range(-projectileToSpawn.SpreadAngle, projectileToSpawn.SpreadAngle);
         Vector3 spreadVector = new Vector3(randomSpreadAngleX, randomSpreadAngleY, 0);
         Quaternion projectileAngleWithSpread = firePoint.transform.rotation * Quaternion.Euler(spreadVector);
         
@@ -805,6 +711,81 @@ public class Weapon : MonoBehaviour
         }
         
         weaponPart.reloadState = WeaponPart.ReloadState.ReadyToFire;
+    }
+    
+    // check the status of the input action at a fast interval - note that this will not add input lag or affect anything on the player's end
+    // for example - charging an example weapon takes 2 seconds
+    // the player gives the input to start charging and holds down the input - this happens "instantly"
+    // (hardware and processing speed add trivial amounts of delay but that's not relevant)
+    //
+    // the input begins this loop, which checks the status of that action every 0.05s
+    // if the player releases their input at any time, it does not need to wait 0.05s before being processed - it still happens instantly
+    // since all this loop does is set a flag - the rest of the code simply checks if the flag is true or false
+    //
+    // the worst case is that the player has already waited 2 seconds - the weapon should be charged
+    // but this could introduce a 0.05s delay to the "charged" flag flipping true - so at most, a 2s charge becomes 2.05s
+    // which is trivial - charge times are already tough to mentally predict, so this should have minimal gameplay impact
+    // this is opposed to a 0.05s *input delay* - which would have an appreciable effect on gameplay, even if small
+    private async Task WaitForCharge(CancellationToken ct, InputAction.CallbackContext context, bool pressOrRelease, WeaponPart weaponPart, WeaponFunctionCondition functionCondition, bool autoRelease)
+    {
+        if (!weaponPart.allowChargeOnCooldown && weaponPart.cycleState == WeaponPart.CycleState.Cycling) return;
+        if (!weaponPart.allowChargeOnWeaponCooldown && weaponPart.parentWeaponScriptableObject.weaponCycleState == WeaponScriptableObject.WeaponCycleState.Cycling) return;
+        
+        
+        for (float f = 0; f < weaponPart.maxChargeTime * 1000; f += 0.05f)
+        {
+            if (ct.IsCancellationRequested) break;
+            
+            weaponPart.chargeState = WeaponPart.ChargeState.Charging;
+            weaponPart.chargePercent = Mathf.Clamp(f / weaponPart.maxChargeTime * 100, 0, 100);
+            weaponPart.lastCharge = weaponPart.chargePercent;
+            
+            if (weaponScriptableObject.debugWeapon) Debug.Log($"{context.action.name} - {f}");
+            if (weaponScriptableObject.debugWeapon) Debug.Log($"{weaponPart.name} Charge - {weaponPart.chargePercent}%");
+            if (weaponScriptableObject.debugWeapon) Debug.Log($"{weaponPart.name} Last Charge - {weaponPart.lastCharge}%");
+            
+            if (f >= weaponPart.maxChargeTime)
+            {
+                weaponPart.chargeState = WeaponPart.ChargeState.Charged;
+                weaponPart.chargePercent = 100; // check
+                weaponPart.lastCharge = weaponPart.chargePercent;
+                
+                // simulate an input with opposite press/release value
+                if (autoRelease) ProcessWeaponFunction(context, !pressOrRelease);
+                
+                break;
+            }
+            await MouseTools.AwaitableTimer(0.05f);
+        }
+    }
+
+    public void CancelCharge(CancellationTokenSource cts, WeaponPart weaponPart)
+    {
+        if (weaponPart.chargeState == WeaponPart.ChargeState.Uncharged || weaponPart.chargePercent == 0) return;
+        
+        weaponPart.chargeCTS.Cancel();
+        weaponPart.chargePercent = 0;
+        weaponPart.chargeState = WeaponPart.ChargeState.Uncharged;
+    }
+
+    public void ProcessWeaponReloadAction(GameObject validationObject, InputAction action)
+    {
+        foreach (WeaponPart weaponPart in weaponScriptableObject.WeaponParts)
+        {
+            if (weaponPart.reloadAction.action != action) continue;
+            StartReload(weaponPart, weaponScriptableObject.weaponOwner);
+        }
+    }
+
+    public void ReleaseTrigger(GameObject validationObject)
+    {
+        if (validationObject != weaponScriptableObject.weaponOwner) return;
+        
+        foreach (WeaponPart weaponPart in weaponScriptableObject.WeaponParts)
+        {
+            weaponPart.isTriggerPulled = false;
+            OnWeaponRelease?.Invoke(this);
+        }
     }
 
     // untested!

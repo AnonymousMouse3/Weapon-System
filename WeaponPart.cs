@@ -114,7 +114,6 @@ public class WeaponPart : ScriptableObject
     [Tooltip("Whether this WeaponPart will respect the shared weapon cooldown")] public bool hasIndependentCooldown;
     [Tooltip("Time (s) that the weapon (not just the weapon part) will be on cooldown for")] public float weaponCooldown;
     [Tooltip("Time (s) that the entire weapon group will be on cooldown for")] public float weaponGroupCooldown;
-    [Tooltip("Time (s) before end of cooldown, input queues a shot soon as cooldown ends")] public float inputBufferTime;
     [HideInInspector] public float _fireRate; // real fire rate
     [HideInInspector] public float _cooldown; // real cooldown
     [HideInInspector] public float minimumFireRate = 0.0001f;
@@ -308,6 +307,13 @@ public class WeaponPart : ScriptableObject
         cycleTask = Task.CompletedTask;
         reloadTask = Task.CompletedTask;
         chargeTask = Task.CompletedTask;
+
+        cycleTimer = Stopwatch.StartNew();
+        cycleTimer.Stop();
+        reloadTimer = Stopwatch.StartNew();
+        reloadTimer.Stop();
+        chargeTimer = Stopwatch.StartNew();
+        chargeTimer.Stop();
         
         // for now, default to the first available fire mode
         foreach (FireModes fireMode in Enum.GetValues(typeof(FireModes)))

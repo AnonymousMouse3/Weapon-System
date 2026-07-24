@@ -11,10 +11,14 @@ using Object = System.Object;
 
 // Credit to DeadCows' MyBox for additional editor attributes - https://github.com/Deadcows/MyBox/
 
+
+
+// todo look into weaponfunctioncooldown in future, so cyclic weapon functions can have independent/variable cooldowns between attacks without abusing weaponcooldown
 [Serializable]
 public class WeaponFunction
 {
     public InputActionReference InputAction;
+    public WeaponPart MainWeaponPart;
     public List<WeaponFunctionCondition> FunctionConditions;
     public List<WeaponFunctionAction> FunctionActions;
 }
