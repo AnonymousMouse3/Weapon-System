@@ -30,7 +30,7 @@ public class WeaponManager : MonoBehaviour
 {
     public delegate void OnHandleWeaponInputs(GameObject validationObject, InputAction.CallbackContext context);
     public static OnHandleWeaponInputs onHandleWeaponInputs;
-    public delegate void OnAddWeaponToGroup(GameObject validationObject, string weaponGroupName, Weapon weapon, int index, bool swapToNewWeapon = false);
+    public delegate void OnAddWeaponToGroup(GameObject validationObject, string weaponGroupName, Weapon weapon, int index = -1, bool swapToNewWeapon = false);
     public static OnAddWeaponToGroup onAddWeaponToGroup;
     public delegate void OnRemoveWeaponFromGroup(GameObject validationObject, string weaponGroupName, Weapon weapon, int index);
     public static OnRemoveWeaponFromGroup onRemoveWeaponFromGroup;
@@ -259,6 +259,10 @@ public class WeaponManager : MonoBehaviour
         if (weaponGroup == null) return;
 
         int weaponIndex = 0;
+        int currentIndex = weaponGroup.WeaponPrefabs.IndexOf(weaponGroup.CurrentWeaponPrefab);
+        int groupCount = weaponGroup.WeaponPrefabs.Count;
+
+        direction = Mathf.Clamp(direction, -1, 1);
         
         switch (direction)
         {
@@ -266,28 +270,16 @@ public class WeaponManager : MonoBehaviour
             case -1:
                 // If we find the lower end of the array, wrap around to the top
                 // Otherwise, swap to the spell below the current spell
-                if (weaponGroup.WeaponPrefabs.IndexOf(weaponGroup.CurrentWeaponPrefab) - 1 < 0)
-                {
-                    weaponIndex = weaponGroup.WeaponPrefabs.Count - 1;
-                }
-                else
-                {
-                    weaponIndex = weaponGroup.WeaponPrefabs.IndexOf(weaponGroup.CurrentWeaponPrefab) - 1;
-                }
+                if (currentIndex == 0) { weaponIndex = groupCount - 1; break; }
+                weaponIndex = currentIndex - 1;
                 break;
             
             // Cycle forwards
             case 1:
                 // If we find the upper end of the array, wrap around to the bottom
                 // Otherwise, swap to the spell above the current spell
-                if (weaponGroup.WeaponPrefabs.IndexOf(weaponGroup.CurrentWeaponPrefab) + 1 >= weaponGroup.WeaponPrefabs.Count)
-                {
-                    weaponIndex = 0;
-                }
-                else
-                {
-                    weaponIndex = weaponGroup.WeaponPrefabs.IndexOf(weaponGroup.CurrentWeaponPrefab) + 1;
-                }
+                if (currentIndex == groupCount - 1) { weaponIndex = 0; break; }
+                weaponIndex = currentIndex + 1;
                 break;
         }
         
@@ -324,15 +316,15 @@ public class WeaponManager : MonoBehaviour
             oldWeapon.gameObject.transform.DOKill();
             Destroy(oldWeapon.gameObject);
             
+            
             foreach (WeaponPart weaponPart in oldWeapon.weaponScriptableObject.WeaponParts)
             {
                 OnCleanupTargetLocks?.Invoke(weaponPart);
-                
+
                 if (!weaponPart.drawAimpoint || !weaponPart.worldAimpointInstance) continue;
                 weaponPart.worldAimpointInstance.transform.DOKill();
                 Destroy(weaponPart.worldAimpointInstance);
             }
-        
             // remove all target
 
             oldWeaponUnequipTime = oldWeapon.weaponScriptableObject.weaponUnequipTime;

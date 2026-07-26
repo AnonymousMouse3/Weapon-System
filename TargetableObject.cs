@@ -61,13 +61,15 @@ public class TargetableObject : MonoBehaviour
         targetUIElements.Add(iconInstance);
     }
 
-    private void RemoveIcon(GameObject player, GameObject targetObject, GameObject icon = null)
+    private void RemoveIcon(GameObject player, GameObject targetObject, GameObject icon)
     {
         if (targetObject != gameObject) return;
         if (targetUIElements.IsNullOrEmpty()) return;
-
-        IconWithName elementToRemove = null;
+        if (!icon) return;
         
+
+        IconWithName elementToRemove = new IconWithName();
+
         foreach (IconWithName element in targetUIElements)
         {
             if (element.name != icon.name) continue;
