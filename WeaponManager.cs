@@ -42,7 +42,7 @@ public class WeaponManager : MonoBehaviour
     public static OnHandleWeaponReloadInputs onHandleWeaponReloadInputs;
     public delegate void OnSwapWeapons(GameObject validationObject, string weaponGroupName, int weaponIndex);
     public static OnSwapWeapons onSwapWeapons;
-    public delegate void OnCycleWeapons(GameObject validationObject, string weaponGroupName, int direction);
+    public delegate void OnCycleWeapons(GameObject validationObject, string weaponGroupName, int direction, int overrideIndex = 0);
     public static OnCycleWeapons onCycleWeapons;
     public delegate void OnSwitchAmmoType(GameObject validationObject, GameObject newAmmoType, int weaponGroupIndex);
     public static OnSwitchAmmoType onSwitchAmmoType;
@@ -251,7 +251,7 @@ public class WeaponManager : MonoBehaviour
         weaponSwapTask = SwapWeapons(weaponGroup.WeaponGroupSwapCTS.Token, validationObject, weaponGroup, weaponIndex);
     }
     
-    private void BeginWeaponCycle(GameObject validationObject, string weaponGroupName, int direction)
+    private void BeginWeaponCycle(GameObject validationObject, string weaponGroupName, int direction, int overrideIndex = 0)
     {
         if (validationObject != gameObject) return;
         // Select the weapon group of interest
@@ -261,6 +261,8 @@ public class WeaponManager : MonoBehaviour
         int weaponIndex = 0;
         int currentIndex = weaponGroup.WeaponPrefabs.IndexOf(weaponGroup.CurrentWeaponPrefab);
         int groupCount = weaponGroup.WeaponPrefabs.Count;
+        
+        if (overrideIndex != 0) currentIndex = overrideIndex;
 
         direction = Mathf.Clamp(direction, -1, 1);
         
@@ -281,6 +283,13 @@ public class WeaponManager : MonoBehaviour
                 if (currentIndex == groupCount - 1) { weaponIndex = 0; break; }
                 weaponIndex = currentIndex + 1;
                 break;
+        }
+        
+        // if a weapon cannot be selected, skip it and cycle again
+        if (weaponGroup.WeaponPrefabs[weaponIndex].weaponScriptableObject.cannotBeSelected)
+        {
+            BeginWeaponCycle(validationObject, weaponGroupName, direction, weaponIndex);
+            return;
         }
         
         weaponGroup.WeaponGroupSwapCTS?.Cancel();

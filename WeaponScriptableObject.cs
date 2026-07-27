@@ -56,6 +56,7 @@ public class WeaponScriptableObject : ScriptableObject
     public float weaponSway;
     public float weaponEquipTime;
     public float weaponUnequipTime;
+    public bool cannotBeSelected;
     
     [Separator("Debug")]
     [SerializeField] public bool debugWeapon;
