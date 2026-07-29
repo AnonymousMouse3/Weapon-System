@@ -14,12 +14,12 @@ using UnityEngine.UIElements;
 [Serializable]
 public class WeaponGroup
 {  
-    public string name;
+    [FormerlySerializedAs("name")] public string weaponGroupName;
     [ReadOnly] public Weapon CurrentWeapon;
-    [ReadOnly] public Weapon CurrentWeaponPrefab;
+    //[ReadOnly] public Weapon CurrentWeaponPrefab;
     [ReadOnly] public bool WeaponGroupOnCooldown;
     [ReadOnly] public bool SwappingWeapon;
-    public List<Weapon> WeaponPrefabs;
+    [FormerlySerializedAs("WeaponPrefabs")] public List<Weapon> Weapons;
     public int MaxWeaponsInGroup;
     public GameObject WeaponGroupObject;
     public bool AimWithAimingSystem;
@@ -36,7 +36,7 @@ public class WeaponManager : MonoBehaviour
     public static OnRemoveWeaponFromGroup onRemoveWeaponFromGroup;
     public delegate void OnReplaceTargetWeapon(GameObject validationObject, string weaponGroupName,  Weapon replacement, Weapon target);
     public static OnReplaceTargetWeapon onReplaceTargetWeapon;
-    public delegate void OnReplaceWeaponInGroup(GameObject validationObject, string weaponGroupName, Weapon replacement, int index);
+    public delegate void OnReplaceWeaponInGroup(GameObject validationObject, string weaponGroupName, Weapon replacement, int index, bool swapToNewWeapon = false);
     public static OnReplaceWeaponInGroup onReplaceWeaponInGroup;
     public delegate void OnHandleWeaponReloadInputs(GameObject validationObject, InputAction action = null);
     public static OnHandleWeaponReloadInputs onHandleWeaponReloadInputs;
@@ -86,7 +86,7 @@ public class WeaponManager : MonoBehaviour
         onHandleWeaponInputs += HandleWeaponInputs;
         onAddWeaponToGroup += AddWeaponToGroup;
         onRemoveWeaponFromGroup += RemoveWeaponFromGroup;
-        onReplaceWeaponInGroup += ReplaceWeaponInGroup;
+        onReplaceWeaponInGroup += ReplaceWeapon;
         onReplaceTargetWeapon += ReplaceTargetWeapon;
         onHandleWeaponReloadInputs += HandleWeaponReloadInputs;
         onSwapWeapons += BeginWeaponSwap;
@@ -100,7 +100,7 @@ public class WeaponManager : MonoBehaviour
         onHandleWeaponInputs -= HandleWeaponInputs;
         onAddWeaponToGroup -= AddWeaponToGroup;
         onRemoveWeaponFromGroup -= RemoveWeaponFromGroup;
-        onReplaceWeaponInGroup -= ReplaceWeaponInGroup;
+        onReplaceWeaponInGroup -= ReplaceWeapon;
         onReplaceTargetWeapon -= ReplaceTargetWeapon;
         onHandleWeaponReloadInputs -= HandleWeaponReloadInputs;
         onSwapWeapons -= BeginWeaponSwap;
@@ -117,29 +117,78 @@ public class WeaponManager : MonoBehaviour
         #endif
         
         if (weaponGroups.IsNullOrEmpty()) return;
+        
+        foreach (WeaponGroup weaponGroup in weaponGroups)
+        {
+            CreateAllWeaponsInGroup(weaponGroup);
+        }
     }
 
     void Start()
     {
         foreach (WeaponGroup weaponGroup in weaponGroups)
         {
-            if (weaponGroup.WeaponPrefabs.IsNullOrEmpty()) continue;
-            if (weaponGroup.WeaponPrefabs[0] == null) continue;
+            if (weaponGroup.Weapons.IsNullOrEmpty()) continue;
+            if (weaponGroup.Weapons[0] == null) continue;
 
-            BeginWeaponSwap(gameObject, weaponGroup.name, 0); // swap to last saved weapon
+            BeginWeaponSwap(gameObject, weaponGroup.weaponGroupName, 0); // swap to last saved weapon
         }
     }
 
-    private void SetupAndInstantiateWeapon(WeaponGroup weaponGroup, Weapon weaponPrefab)
+    // for instantiating a weapon
+    public Weapon CreateWeapon(WeaponGroup weaponGroup, Weapon weaponPrefab, bool addToGroup = true, int index = -1)
     {
         // Create the new weapon ingame
         GameObject newWeaponGameObject = Instantiate(weaponPrefab.gameObject, weaponGroup.WeaponGroupObject.transform);
+        newWeaponGameObject.SetActive(false);
         newWeaponGameObject.TryGetComponent(out Weapon weapon);
+
+        if (!addToGroup) return weapon;
         
+        if (weaponGroup.Weapons.Contains(weaponPrefab)) weaponGroup.Weapons[weaponGroup.Weapons.IndexOf(weaponPrefab)] = weapon;
+        else weaponGroup.Weapons.Add(weapon);
+        
+        return weapon;
+    }
+
+    // for destroying an instantiated weapon -- use with caution
+    public void DestroyWeapon(WeaponGroup weaponGroup, Weapon weapon, int index = -1)
+    {
+        // todo save the old weapon!!
+        DisableWeapon(weaponGroup, weapon);
+        weaponGroup.Weapons.Remove(weapon);
+        Destroy(weapon.gameObject);
+    }
+
+    // for destroying an instantiated weapon and replacing it with a new instantiated weapon
+    public void ReplaceWeapon(GameObject validationObject, string weaponGroupName, Weapon replacement, int index, bool swapToNewWeapon = false)
+    {
+        if (validationObject != gameObject) return;
+        WeaponGroup weaponGroup = FindWeaponGroupByName(weaponGroupName);
+        Weapon original = weaponGroup.Weapons[index];
+        
+        DisableWeapon(weaponGroup, original);
+        
+        // Create the new weapon ingame
+        GameObject newWeaponGameObject = Instantiate(replacement.gameObject, weaponGroup.WeaponGroupObject.transform);
+        newWeaponGameObject.SetActive(false);
+        newWeaponGameObject.TryGetComponent(out Weapon weapon);
+
+        weaponGroup.Weapons[index] = weapon;
+        
+        if (swapToNewWeapon || original == weaponGroup.CurrentWeapon) BeginWeaponSwap(gameObject, weaponGroup.weaponGroupName, index);
+
+        Destroy(original.gameObject);
+    }
+
+    // for swapping weapons, or enabling a weapon that is already instantiated. does not create a new gameobject
+    private void EnableWeapon(WeaponGroup weaponGroup, Weapon weapon)
+    {
         // Get the relevant components and set relevant data in the weapon group
+        weapon.gameObject.SetActive(true);
         weapon.transform.SetAsFirstSibling();
         weaponGroup.CurrentWeapon = weapon;
-        weaponGroup.CurrentWeaponPrefab = weaponPrefab;
+        //weaponGroup.CurrentWeaponPrefab = weapon.gameObject;
 
         weaponGroup.CurrentWeapon.weaponScriptableObject.weaponOwner = gameObject;
         
@@ -154,90 +203,51 @@ public class WeaponManager : MonoBehaviour
         if (!weaponGroup.AimWithAimingSystem) return;
         
         // Register the new weapon with the aiming system
-        OnRegisterWeaponAiming?.Invoke(gameObject, newWeaponGameObject);
+        OnRegisterWeaponAiming?.Invoke(gameObject, weapon.gameObject);
+        
+        if (weaponGroup.weaponGroupName == "Spells")
+        {
+            OnCurrentSpellChange?.Invoke(weaponGroup.CurrentWeapon.weaponScriptableObject);
+        }
+    }
+
+    // for deactivating an instantiated weapon, for weapon swapping, etc. does not unload/destroy the weapon
+    public void DisableWeapon(WeaponGroup weaponGroup, Weapon weapon)
+    {
+        OnUnregisterWeaponAiming?.Invoke(gameObject, weapon.gameObject);
+        
+        weaponGroup.CurrentWeapon.ReleaseTrigger(gameObject);
+        weapon.gameObject.transform.DOKill();
+        weapon.gameObject.SetActive(false);
+            
+        foreach (WeaponPart weaponPart in weapon.weaponScriptableObject.WeaponParts)
+        {
+            OnCleanupTargetLocks?.Invoke(weaponPart);
+
+            if (!weaponPart.drawAimpoint || !weaponPart.worldAimpointInstance) continue;
+            weaponPart.worldAimpointInstance.transform.DOKill();
+            Destroy(weaponPart.worldAimpointInstance);
+        }
+        
+        if (weaponGroup.weaponGroupName == "Spells")
+        {
+            OnCurrentSpellChange?.Invoke(weaponGroup.CurrentWeapon.weaponScriptableObject);
+        }
+    }
+
+    public void CreateAllWeaponsInGroup(WeaponGroup weaponGroup)
+    {
+        List<Weapon> instantiatedWeapons = new List<Weapon>();
+
+        foreach (Weapon weapon in weaponGroup.Weapons)
+        {
+            Weapon newWeapon = CreateWeapon(weaponGroup, weapon, false);
+            instantiatedWeapons.Add(newWeapon);
+        }
+        
+        weaponGroup.Weapons = instantiatedWeapons;
     }
     
-    public void LoadAllExistingWeapons()
-    {
-        foreach (WeaponGroup group in WeaponGroups)
-        {
-            Weapon weapon = group.CurrentWeapon;
-            
-            OnRegisterWeaponAiming?.Invoke(gameObject, weapon.gameObject);
-            weapon.gameObject.SetActive(true);
-
-            foreach (WeaponPart weaponPart in weapon.weaponScriptableObject.WeaponParts)
-            {
-                if (!weaponPart.drawAimpoint || !weaponPart.worldAimpointInstance) continue;
-                weaponPart.worldAimpointInstance.SetActive(true);
-            }
-            weaponsUnloaded = false;
-        }
-    }
-
-    public void UnloadAllWeapons()
-    {
-        foreach (WeaponGroup group in WeaponGroups)
-        {
-            Weapon oldWeapon = group.CurrentWeapon;
-            
-            OnUnregisterWeaponAiming?.Invoke(gameObject, oldWeapon.gameObject);
-            group.CurrentWeapon.ReleaseTrigger(gameObject);
-            
-            oldWeapon.gameObject.transform.DOKill();
-            oldWeapon.gameObject.SetActive(false);
-        
-            foreach (WeaponPart weaponPart in oldWeapon.weaponScriptableObject.WeaponParts)
-            {
-                OnCleanupTargetLocks?.Invoke(weaponPart);
-                
-                if (!weaponPart.drawAimpoint || !weaponPart.worldAimpointInstance) continue;
-                weaponPart.worldAimpointInstance.transform.DOKill();
-                weaponPart.worldAimpointInstance.SetActive(false);
-            }
-            
-            // remove all target
-            weaponsUnloaded = true;
-        }
-    }
-
-    // feed inputs to the weapon and feed only the right type of input (press or release, etc)
-    // do NOT perform weapon condition checks here (ammo checks, mana checks), these go in Weapon
-    private void HandleWeaponInputs(GameObject validationObject, InputAction.CallbackContext context)
-    {
-        if (validationObject != gameObject) return;
-        
-        foreach (WeaponGroup weaponGroup in weaponGroups)
-        {
-            if (weaponGroup.WeaponPrefabs.IsNullOrEmpty()) continue;
-            
-            /*if (weaponGroup.Action)
-            {
-                if (weaponGroup.Action.ToInputAction() != action) continue;
-            }*/
-
-            if (weaponGroup.SwappingWeapon) return;
-            if (weaponGroup.WeaponGroupOnCooldown) return;
-
-            weaponGroup.CurrentWeapon.ProcessWeaponFunction(context, context.performed);
-        }
-    }
-
-    private void HandleWeaponReloadInputs(GameObject validationObject, InputAction action)
-    {
-        if (validationObject != gameObject) return;
-        
-        foreach (WeaponGroup weaponGroup in weaponGroups)
-        {
-            if (weaponGroup.WeaponPrefabs.IsNullOrEmpty()) continue;
-
-            if (weaponGroup.SwappingWeapon) return;
-            if (weaponGroup.WeaponGroupOnCooldown) return;
-            
-            weaponGroup.CurrentWeapon.ProcessWeaponReloadAction(gameObject, action);
-        }
-    }
-
     private async void BeginWeaponSwap(GameObject validationObject, string weaponGroupName, int weaponIndex)
     {
         if (validationObject != gameObject) return;
@@ -259,8 +269,8 @@ public class WeaponManager : MonoBehaviour
         if (weaponGroup == null) return;
 
         int weaponIndex = 0;
-        int currentIndex = weaponGroup.WeaponPrefabs.IndexOf(weaponGroup.CurrentWeaponPrefab);
-        int groupCount = weaponGroup.WeaponPrefabs.Count;
+        int currentIndex = weaponGroup.Weapons.IndexOf(weaponGroup.CurrentWeapon);
+        int groupCount = weaponGroup.Weapons.Count;
         
         if (overrideIndex != 0) currentIndex = overrideIndex;
 
@@ -286,8 +296,16 @@ public class WeaponManager : MonoBehaviour
         }
         
         // if a weapon cannot be selected, skip it and cycle again
-        if (weaponGroup.WeaponPrefabs[weaponIndex].weaponScriptableObject.cannotBeSelected)
+        if (weaponGroup.Weapons[weaponIndex].weaponScriptableObject.cannotBeSelected)
         {
+            int count = 0;
+            foreach (Weapon weapon in weaponGroup.Weapons)
+            {
+                if (!weapon.weaponScriptableObject.cannotBeSelected) count++;
+            }
+            // if one weapon or less can be selected, do not cycle as it will cause a loop
+            if (count <= 1) return;
+            
             BeginWeaponCycle(validationObject, weaponGroupName, direction, weaponIndex);
             return;
         }
@@ -300,58 +318,69 @@ public class WeaponManager : MonoBehaviour
 
     private async Task SwapWeapons(CancellationToken ct, GameObject validationObject, WeaponGroup weaponGroup, int weaponIndex)
     {
-        if (validationObject != gameObject) return;
-        if (weaponGroup == null) return;
-        if (!weaponGroup.WeaponPrefabs[weaponIndex]) return;
-        float oldWeaponUnequipTime = 0;
+        if (validationObject != gameObject || weaponGroup == null || weaponIndex < 0) return;
+        if (weaponGroup.Weapons[weaponIndex].weaponScriptableObject.cannotBeSelected) return;
+        if (weaponGroup.CurrentWeapon == weaponGroup.Weapons[weaponIndex]) return;
         
-        // Get the old weapon and unregister it from the aiming system
+        //float oldWeaponUnequipTime = 0;
+        
+        // Get the old weapon and disable it
         Weapon oldWeapon = weaponGroup.CurrentWeapon;
-        
-        if (oldWeapon)
-        {
-            OnUnregisterWeaponAiming?.Invoke(gameObject, oldWeapon.gameObject);
-            weaponGroup.CurrentWeapon.ReleaseTrigger(gameObject);
-        }
+        if (oldWeapon) DisableWeapon(weaponGroup, oldWeapon);
         
         // Prevent aiming and shooting until we have swapped weapons
         weaponGroup.SwappingWeapon = true;
         OnSetAimingAllowed?.Invoke(false);
         
-        // todo save the old weapon!!
-        // Remove the old weapon
-        if (oldWeapon)
-        {
-            oldWeapon.gameObject.transform.DOKill();
-            Destroy(oldWeapon.gameObject);
-            
-            
-            foreach (WeaponPart weaponPart in oldWeapon.weaponScriptableObject.WeaponParts)
-            {
-                OnCleanupTargetLocks?.Invoke(weaponPart);
-
-                if (!weaponPart.drawAimpoint || !weaponPart.worldAimpointInstance) continue;
-                weaponPart.worldAimpointInstance.transform.DOKill();
-                Destroy(weaponPart.worldAimpointInstance);
-            }
-            // remove all target
-
-            oldWeaponUnequipTime = oldWeapon.weaponScriptableObject.weaponUnequipTime;
-        }
-        
-        SetupAndInstantiateWeapon(weaponGroup, weaponGroup.WeaponPrefabs[weaponIndex]);
-
-        if (weaponGroup.name == "Spells")
-        {
-            OnCurrentSpellChange?.Invoke(weaponGroup.CurrentWeapon.weaponScriptableObject);
-        }
+        EnableWeapon(weaponGroup, weaponGroup.Weapons[weaponIndex]);
         
         // Allow aiming and shooting again after a delay
-        await MouseTools.AwaitableTimer(oldWeaponUnequipTime + weaponGroup.CurrentWeapon.weaponScriptableObject.weaponEquipTime);
+        await MouseTools.AwaitableTimer(/*oldWeaponUnequipTime +*/weaponGroup.CurrentWeapon.weaponScriptableObject.weaponEquipTime);
         if (ct.IsCancellationRequested) return;
         
         weaponGroup.SwappingWeapon = false;
         OnSetAimingAllowed?.Invoke(true);
+        
+        #if SPELL_SYSTEM
+        OnCurrentSpellChange?.Invoke(weaponGroup.Weapons[weaponIndex].weaponScriptableObject);
+        #endif
+    }
+
+    // feed inputs to the weapon and feed only the right type of input (press or release, etc)
+    // do NOT perform weapon condition checks here (ammo checks, mana checks), these go in Weapon
+    private void HandleWeaponInputs(GameObject validationObject, InputAction.CallbackContext context)
+    {
+        if (validationObject != gameObject) return;
+        
+        foreach (WeaponGroup weaponGroup in weaponGroups)
+        {
+            if (weaponGroup.Weapons.IsNullOrEmpty()) continue;
+            
+            /*if (weaponGroup.Action)
+            {
+                if (weaponGroup.Action.ToInputAction() != action) continue;
+            }*/
+
+            if (weaponGroup.SwappingWeapon) return;
+            if (weaponGroup.WeaponGroupOnCooldown) return;
+
+            weaponGroup.CurrentWeapon.ProcessWeaponFunction(context, context.performed);
+        }
+    }
+
+    private void HandleWeaponReloadInputs(GameObject validationObject, InputAction action)
+    {
+        if (validationObject != gameObject) return;
+        
+        foreach (WeaponGroup weaponGroup in weaponGroups)
+        {
+            if (weaponGroup.Weapons.IsNullOrEmpty()) continue;
+
+            if (weaponGroup.SwappingWeapon) return;
+            if (weaponGroup.WeaponGroupOnCooldown) return;
+            
+            weaponGroup.CurrentWeapon.ProcessWeaponReloadAction(gameObject, action);
+        }
     }
     
     private void BeginGlobalCooldown(GameObject validationObject, float cooldown)
@@ -385,7 +414,7 @@ public class WeaponManager : MonoBehaviour
     {
         foreach (WeaponGroup group in weaponGroups)
         {
-            if (group.name != name) continue;
+            if (group.weaponGroupName != name) continue;
             return group;
         }
         
@@ -397,18 +426,17 @@ public class WeaponManager : MonoBehaviour
         if (validationObject != gameObject) return;
         WeaponGroup weaponGroup = FindWeaponGroupByName(weaponGroupName);
         
-        if (weaponGroup.WeaponPrefabs.Count >= weaponGroup.MaxWeaponsInGroup) return;
+        if (weaponGroup.Weapons.Count >= weaponGroup.MaxWeaponsInGroup) return;
         
         if (index != -1)
         {
-            weaponGroup.WeaponPrefabs.Insert(index, weaponToAdd);
-            return;
+            CreateWeapon(weaponGroup, weaponToAdd, true, index);
         }
-        
-        weaponGroup.WeaponPrefabs.Add(weaponToAdd);
+
+        CreateWeapon(weaponGroup, weaponToAdd);
         
         if (!swapToNewWeapon) return;
-        BeginWeaponSwap(gameObject, weaponGroupName, weaponGroup.WeaponPrefabs.IndexOf(weaponToAdd));
+        BeginWeaponSwap(gameObject, weaponGroupName, weaponGroup.Weapons.IndexOf(weaponToAdd));
     }
     
     private void RemoveWeaponFromGroup(GameObject validationObject, string weaponGroupName, Weapon targetWeapon, int index = -1)
@@ -420,8 +448,8 @@ public class WeaponManager : MonoBehaviour
         // if an index is specified
         if (index != -1)
         {
-            weaponToRemove = weaponGroup.WeaponPrefabs[index];
-            weaponGroup.WeaponPrefabs.RemoveAt(index);
+            weaponToRemove = weaponGroup.Weapons[index];
+            weaponGroup.Weapons.RemoveAt(index);
 
             if (weaponGroup.CurrentWeapon == weaponToRemove)
             {
@@ -432,13 +460,13 @@ public class WeaponManager : MonoBehaviour
         }
         
         // for now, this removes the first matching weapon - unsure if this works
-        foreach (Weapon weapon in weaponGroup.WeaponPrefabs)
+        foreach (Weapon weapon in weaponGroup.Weapons)
         {
             if (weapon.weaponScriptableObject.weaponName != targetWeapon.weaponScriptableObject.weaponName) continue;
             weaponToRemove = weapon;
         }
         
-        weaponGroup.WeaponPrefabs.Remove(weaponToRemove);
+        weaponGroup.Weapons.Remove(weaponToRemove);
 
         if (weaponGroup.CurrentWeapon == weaponToRemove)
         {
@@ -460,20 +488,5 @@ public class WeaponManager : MonoBehaviour
         }
         
         weaponToRemove*/
-    }
-    
-    private void ReplaceWeaponInGroup(GameObject validationObject, string weaponGroupName, Weapon replacement, int index)
-    {
-        if (validationObject != gameObject) return;
-        Weapon weaponToRemove = null;
-        WeaponGroup weaponGroup = FindWeaponGroupByName(weaponGroupName);
-
-        
-        weaponToRemove = weaponGroup.WeaponPrefabs[index];
-        weaponGroup.WeaponPrefabs.RemoveAt(index);
-        
-        weaponGroup.WeaponPrefabs.Insert(index, replacement);
-        
-        BeginWeaponSwap(gameObject, weaponGroupName, index);
     }
 }
