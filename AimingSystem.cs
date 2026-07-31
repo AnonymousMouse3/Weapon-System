@@ -11,13 +11,13 @@ using UnityEngine.TextCore.Text;
 
 public class AimingSystem : MonoBehaviour
 {
-    public delegate void OnSetAIAimTargetingMode(GameObject validationObject, AIAimTargetingMode newAIAimTargetingMode);
+    public delegate void OnSetAIAimTargetingMode(GameObject target, AIAimTargetingMode newAIAimTargetingMode);
     public static OnSetAIAimTargetingMode onSetAIAimTargetingMode;
-    public delegate void OnSetAimpoint(GameObject validationObject, GameObject newAimpoint);
+    public delegate void OnSetAimpoint(GameObject target, GameObject newAimpoint);
     public static OnSetAimpoint onSetAimpoint;
-    public delegate void OnMoveAimpoint(GameObject validationObject, Vector3 newPosition);
+    public delegate void OnMoveAimpoint(GameObject target, Vector3 newPosition);
     public static OnMoveAimpoint onMoveAimpoint;
-    public delegate void OnSetTargetGameObject(GameObject validationObject, GameObject newTargetCharacter);
+    public delegate void OnSetTargetGameObject(GameObject target, GameObject newTargetCharacter);
     public static OnSetTargetGameObject onSetTargetGameObject;
     public static event Action OnReportAIAimState;
     public static event Action<GameObject, GameObject> OnTargetLock;
@@ -364,44 +364,44 @@ public class AimingSystem : MonoBehaviour
         AimingAllowed = value;
     }
 
-    private void RegisterWeapon(GameObject validationObject, GameObject newWeaponInstance)
+    private void RegisterWeapon(GameObject targ, GameObject newWeaponInstance)
     {
-        if (validationObject != gameObject) return;
+        if (targ != gameObject) return;
         
         weaponObjectsToAim.Add(newWeaponInstance);
         Weapon weapon = newWeaponInstance.GetComponent<Weapon>();
     }
 
-    private void UnregisterWeapon(GameObject validationObject, GameObject oldWeaponInstance)
+    private void UnregisterWeapon(GameObject target, GameObject oldWeaponInstance)
     {
-        if (validationObject != gameObject) return;
+        if (target != gameObject) return;
         
         oldWeaponInstance.transform.DOKill();
         weaponObjectsToAim.Remove(oldWeaponInstance);
     }
 
-    private void SetAIAimMode(GameObject validationObject, AIAimTargetingMode newAIAimTargetingMode)
+    private void SetAIAimMode(GameObject target, AIAimTargetingMode newAIAimTargetingMode)
     {
-        if (validationObject != gameObject) return;
+        if (target != gameObject) return;
         
         currentAIAimTargetingMode = newAIAimTargetingMode;
     }
 
-    private void SetAimpoint(GameObject validationObject, GameObject newAimpoint)
+    private void SetAimpoint(GameObject target, GameObject newAimpoint)
     {
-        if (validationObject != gameObject) return;
+        if (target != gameObject) return;
         aimpoint = newAimpoint;
     }
 
-    private void MoveAimpoint(GameObject validationObject, Vector3 newPosition)
+    private void MoveAimpoint(GameObject target, Vector3 newPosition)
     {
-        if (validationObject != gameObject) return;
+        if (target != gameObject) return;
         aimpoint.transform.position = newPosition;
     }
     
-    private void SetTargetGameObject(GameObject validationObject, GameObject newCharacter)
+    private void SetTargetGameObject(GameObject target, GameObject newCharacter)
     {
-        if (validationObject != gameObject) return;
+        if (target != gameObject) return;
         targetCharacter = newCharacter;
     }
     

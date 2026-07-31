@@ -329,9 +329,9 @@ public class ProjectileSystem : MonoBehaviour
         }
     }
 
-    private void RemoteDetonate(GameObject validationObject)
+    private void RemoteDetonate(GameObject target)
     {
-        if (validationObject != gameObject) return;
+        if (target != gameObject) return;
         
         DestroyProjectile();
     }

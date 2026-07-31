@@ -28,27 +28,27 @@ public class WeaponGroup
 
 public class WeaponManager : MonoBehaviour
 {
-    public delegate void OnHandleWeaponInputs(GameObject validationObject, InputAction.CallbackContext context);
+    public delegate void OnHandleWeaponInputs(GameObject target, InputAction.CallbackContext context);
     public static OnHandleWeaponInputs onHandleWeaponInputs;
-    public delegate void OnAddWeaponToGroup(GameObject validationObject, string weaponGroupName, Weapon weapon, int index = -1, bool swapToNewWeapon = false);
+    public delegate void OnAddWeaponToGroup(GameObject target, string weaponGroupName, Weapon weapon, int index = -1, bool swapToNewWeapon = false);
     public static OnAddWeaponToGroup onAddWeaponToGroup;
-    public delegate void OnRemoveWeaponFromGroup(GameObject validationObject, string weaponGroupName, Weapon weapon, int index);
+    public delegate void OnRemoveWeaponFromGroup(GameObject target, string weaponGroupName, Weapon weapon, int index);
     public static OnRemoveWeaponFromGroup onRemoveWeaponFromGroup;
-    public delegate void OnReplaceTargetWeapon(GameObject validationObject, string weaponGroupName,  Weapon replacement, Weapon target);
+    public delegate void OnReplaceTargetWeapon(GameObject target, string weaponGroupName,  Weapon replacement, Weapon targetWeapon);
     public static OnReplaceTargetWeapon onReplaceTargetWeapon;
-    public delegate void OnReplaceWeaponInGroup(GameObject validationObject, string weaponGroupName, Weapon replacement, int index, bool swapToNewWeapon = false);
+    public delegate void OnReplaceWeaponInGroup(GameObject target, string weaponGroupName, Weapon replacement, int index, bool swapToNewWeapon = false);
     public static OnReplaceWeaponInGroup onReplaceWeaponInGroup;
-    public delegate void OnHandleWeaponReloadInputs(GameObject validationObject, InputAction action = null);
+    public delegate void OnHandleWeaponReloadInputs(GameObject target, InputAction action = null);
     public static OnHandleWeaponReloadInputs onHandleWeaponReloadInputs;
-    public delegate void OnSwapWeapons(GameObject validationObject, string weaponGroupName, int weaponIndex);
+    public delegate void OnSwapWeapons(GameObject target, string weaponGroupName, int weaponIndex);
     public static OnSwapWeapons onSwapWeapons;
-    public delegate void OnCycleWeapons(GameObject validationObject, string weaponGroupName, int direction, int overrideIndex = 0);
+    public delegate void OnCycleWeapons(GameObject target, string weaponGroupName, int direction, int overrideIndex = 0);
     public static OnCycleWeapons onCycleWeapons;
-    public delegate void OnSwitchAmmoType(GameObject validationObject, GameObject newAmmoType, int weaponGroupIndex);
+    public delegate void OnSwitchAmmoType(GameObject target, GameObject newAmmoType, int weaponGroupIndex);
     public static OnSwitchAmmoType onSwitchAmmoType;
-    public delegate void OnBeginGlobalCooldown(GameObject validationObject, float cooldown);
+    public delegate void OnBeginGlobalCooldown(GameObject target, float cooldown);
     public static OnBeginGlobalCooldown onBeginGlobalCooldown;
-    public delegate void OnBeginWeaponGroupGlobalCooldown(GameObject validationObject, WeaponGroup weaponGroup, float cooldown);
+    public delegate void OnBeginWeaponGroupGlobalCooldown(GameObject target, WeaponGroup weaponGroup, float cooldown);
     public static OnBeginWeaponGroupGlobalCooldown onBeginWeaponGroupGlobalCooldown;
     
     public static event Action<GameObject, GameObject> OnRegisterWeaponAiming;
@@ -161,9 +161,9 @@ public class WeaponManager : MonoBehaviour
     }
 
     // for destroying an instantiated weapon and replacing it with a new instantiated weapon
-    public void ReplaceWeapon(GameObject validationObject, string weaponGroupName, Weapon replacement, int index, bool swapToNewWeapon = false)
+    public void ReplaceWeapon(GameObject target, string weaponGroupName, Weapon replacement, int index, bool swapToNewWeapon = false)
     {
-        if (validationObject != gameObject) return;
+        if (target != gameObject) return;
         WeaponGroup weaponGroup = FindWeaponGroupByName(weaponGroupName);
         Weapon original = weaponGroup.Weapons[index];
         
@@ -248,9 +248,9 @@ public class WeaponManager : MonoBehaviour
         weaponGroup.Weapons = instantiatedWeapons;
     }
     
-    private async void BeginWeaponSwap(GameObject validationObject, string weaponGroupName, int weaponIndex)
+    private async void BeginWeaponSwap(GameObject target, string weaponGroupName, int weaponIndex)
     {
-        if (validationObject != gameObject) return;
+        if (target != gameObject) return;
         // Select the weapon group of interest
         WeaponGroup weaponGroup = FindWeaponGroupByName(weaponGroupName);
         if (weaponGroup == null) return;
@@ -258,12 +258,12 @@ public class WeaponManager : MonoBehaviour
         weaponGroup.WeaponGroupSwapCTS?.Cancel();
         
         weaponGroup.WeaponGroupSwapCTS = new CancellationTokenSource();
-        weaponSwapTask = SwapWeapons(weaponGroup.WeaponGroupSwapCTS.Token, validationObject, weaponGroup, weaponIndex);
+        weaponSwapTask = SwapWeapons(weaponGroup.WeaponGroupSwapCTS.Token, target, weaponGroup, weaponIndex);
     }
     
-    private void BeginWeaponCycle(GameObject validationObject, string weaponGroupName, int direction, int overrideIndex = 0)
+    private void BeginWeaponCycle(GameObject target, string weaponGroupName, int direction, int overrideIndex = 0)
     {
-        if (validationObject != gameObject) return;
+        if (target != gameObject) return;
         // Select the weapon group of interest
         WeaponGroup weaponGroup = FindWeaponGroupByName(weaponGroupName);
         if (weaponGroup == null) return;
@@ -306,19 +306,19 @@ public class WeaponManager : MonoBehaviour
             // if one weapon or less can be selected, do not cycle as it will cause a loop
             if (count <= 1) return;
             
-            BeginWeaponCycle(validationObject, weaponGroupName, direction, weaponIndex);
+            BeginWeaponCycle(target, weaponGroupName, direction, weaponIndex);
             return;
         }
         
         weaponGroup.WeaponGroupSwapCTS?.Cancel();
         
         weaponGroup.WeaponGroupSwapCTS = new CancellationTokenSource();
-        weaponSwapTask = SwapWeapons(weaponGroup.WeaponGroupSwapCTS.Token, validationObject, weaponGroup, weaponIndex);
+        weaponSwapTask = SwapWeapons(weaponGroup.WeaponGroupSwapCTS.Token, target, weaponGroup, weaponIndex);
     }
 
-    private async Task SwapWeapons(CancellationToken ct, GameObject validationObject, WeaponGroup weaponGroup, int weaponIndex)
+    private async Task SwapWeapons(CancellationToken ct, GameObject target, WeaponGroup weaponGroup, int weaponIndex)
     {
-        if (validationObject != gameObject || weaponGroup == null || weaponIndex < 0) return;
+        if (target != gameObject || weaponGroup == null || weaponIndex < 0) return;
         if (weaponGroup.Weapons[weaponIndex].weaponScriptableObject.cannotBeSelected) return;
         if (weaponGroup.CurrentWeapon == weaponGroup.Weapons[weaponIndex]) return;
         
@@ -348,9 +348,9 @@ public class WeaponManager : MonoBehaviour
 
     // feed inputs to the weapon and feed only the right type of input (press or release, etc)
     // do NOT perform weapon condition checks here (ammo checks, mana checks), these go in Weapon
-    private void HandleWeaponInputs(GameObject validationObject, InputAction.CallbackContext context)
+    private void HandleWeaponInputs(GameObject target, InputAction.CallbackContext context)
     {
-        if (validationObject != gameObject) return;
+        if (target != gameObject) return;
         
         foreach (WeaponGroup weaponGroup in weaponGroups)
         {
@@ -368,9 +368,9 @@ public class WeaponManager : MonoBehaviour
         }
     }
 
-    private void HandleWeaponReloadInputs(GameObject validationObject, InputAction action)
+    private void HandleWeaponReloadInputs(GameObject target, InputAction action)
     {
-        if (validationObject != gameObject) return;
+        if (target != gameObject) return;
         
         foreach (WeaponGroup weaponGroup in weaponGroups)
         {
@@ -383,14 +383,14 @@ public class WeaponManager : MonoBehaviour
         }
     }
     
-    private void BeginGlobalCooldown(GameObject validationObject, float cooldown)
+    private void BeginGlobalCooldown(GameObject target, float cooldown)
     {
         globalCooldownCTS?.Cancel();
         globalCooldownCTS = new CancellationTokenSource();
         globalCooldownTask = Cooldown(globalCooldownCTS.Token, allWeaponsOnGlobalCooldown, cooldown);
     }
     
-    private void BeginWeaponGroupGlobalCooldown(GameObject validationObject, WeaponGroup weaponGroup, float cooldown)
+    private void BeginWeaponGroupGlobalCooldown(GameObject target, WeaponGroup weaponGroup, float cooldown)
     {
         weaponGroupCooldownCTS?.Cancel();
         weaponGroupCooldownCTS = new CancellationTokenSource();
@@ -421,9 +421,9 @@ public class WeaponManager : MonoBehaviour
         return null;
     }
     
-    private void AddWeaponToGroup(GameObject validationObject, string weaponGroupName, Weapon weaponToAdd, int index = -1, bool swapToNewWeapon = false)
+    private void AddWeaponToGroup(GameObject target, string weaponGroupName, Weapon weaponToAdd, int index = -1, bool swapToNewWeapon = false)
     {
-        if (validationObject != gameObject) return;
+        if (target != gameObject) return;
         WeaponGroup weaponGroup = FindWeaponGroupByName(weaponGroupName);
         
         if (weaponGroup.Weapons.Count >= weaponGroup.MaxWeaponsInGroup) return;
@@ -439,9 +439,9 @@ public class WeaponManager : MonoBehaviour
         BeginWeaponSwap(gameObject, weaponGroupName, weaponGroup.Weapons.IndexOf(weaponToAdd));
     }
     
-    private void RemoveWeaponFromGroup(GameObject validationObject, string weaponGroupName, Weapon targetWeapon, int index = -1)
+    private void RemoveWeaponFromGroup(GameObject target, string weaponGroupName, Weapon targetWeapon, int index = -1)
     {
-        if (validationObject != gameObject) return;
+        if (target != gameObject) return;
         Weapon weaponToRemove = null;
         WeaponGroup weaponGroup = FindWeaponGroupByName(weaponGroupName);
 
@@ -474,16 +474,16 @@ public class WeaponManager : MonoBehaviour
         }
     }
     
-    private void ReplaceTargetWeapon(GameObject validationObject, string weaponGroupName, Weapon replacement, Weapon target)
+    private void ReplaceTargetWeapon(GameObject target, string weaponGroupName, Weapon replacement, Weapon targetWeapon)
     {
-        /*if (validationObject != gameObject) return;
+        /*if (target != gameObject) return;
         WeaponGroup weaponGroup = FindWeaponGroupByName(weaponGroupName);
         Weapon weaponToRemove;
         
         // for now, this removes the first matching weapon - unsure if this works
         foreach (Weapon weapon in weaponGroup.Weapons)
         {
-            if (weapon.weaponScriptableObject.weaponComponent.name != target.weaponScriptableObject.weaponComponent.name) continue;
+            if (weapon.weaponScriptableObject.weaponComponent.name != targetWeapon.weaponScriptableObject.weaponComponent.name) continue;
             weaponToRemove = weapon;
         }
         

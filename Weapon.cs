@@ -31,7 +31,7 @@ using Random = UnityEngine.Random;
 [Serializable]
 public class Weapon : MonoBehaviour
 {
-    public delegate void OnReloadWeapon(WeaponPart weaponPart, GameObject validationObject);
+    public delegate void OnReloadWeapon(WeaponPart weaponPart, GameObject target);
     public static OnReloadWeapon onReloadWeapon;
 
     public static event Action<GameObject, WeaponScriptableObject> OnWeaponInstantiated; // contains the new instance of the weapon
@@ -144,9 +144,9 @@ public class Weapon : MonoBehaviour
         OnWeaponInstantiated?.Invoke(gameObject, weaponScriptableObject);
     }
 
-    public void ShootWeaponDirectly(GameObject validationObject, bool pressOrRelease)
+    public void ShootWeaponDirectly(GameObject target, bool pressOrRelease)
     {
-        if (validationObject != weaponScriptableObject.weaponOwner) return;
+        if (target != weaponScriptableObject.weaponOwner) return;
 
         // shoots the first weapon part directly - use for simple weapons for now, expand in future
         WeaponPart currentWeaponPart = weaponScriptableObject.WeaponParts[0];
@@ -631,9 +631,9 @@ public class Weapon : MonoBehaviour
     
     
     // needs redesign
-    /*private void SwitchAmmoType(GameObject validationObject, WeaponPart weaponPart, GameObject newAmmoType)
+    /*private void SwitchAmmoType(GameObject target, WeaponPart weaponPart, GameObject newAmmoType)
     {
-        if (validationObject != gameObject) return;
+        if (target != gameObject) return;
 
         foreach (WeaponProjectile projectile in weaponPart.projectiles)
         {
@@ -663,9 +663,9 @@ public class Weapon : MonoBehaviour
         weaponPart.cycleState = WeaponPart.CycleState.ReadyToFire;
     }
 
-    private void StartReload(WeaponPart weaponPart, GameObject validationObject)
+    private void StartReload(WeaponPart weaponPart, GameObject target)
     {
-        if (validationObject != weaponScriptableObject.weaponOwner) return;
+        if (target != weaponScriptableObject.weaponOwner) return;
         if (!weaponPart.needsReloading) return;
 
         if (weaponPart.hasMagazine)
@@ -768,7 +768,7 @@ public class Weapon : MonoBehaviour
         weaponPart.chargeState = WeaponPart.ChargeState.Uncharged;
     }
 
-    public void ProcessWeaponReloadAction(GameObject validationObject, InputAction action)
+    public void ProcessWeaponReloadAction(GameObject target, InputAction action)
     {
         foreach (WeaponPart weaponPart in weaponScriptableObject.WeaponParts)
         {
@@ -777,9 +777,9 @@ public class Weapon : MonoBehaviour
         }
     }
 
-    public void ReleaseTrigger(GameObject validationObject)
+    public void ReleaseTrigger(GameObject target)
     {
-        if (validationObject != weaponScriptableObject.weaponOwner) return;
+        if (target != weaponScriptableObject.weaponOwner) return;
         
         foreach (WeaponPart weaponPart in weaponScriptableObject.WeaponParts)
         {
