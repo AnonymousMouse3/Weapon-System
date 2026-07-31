@@ -115,17 +115,17 @@ public class WeaponManager : MonoBehaviour
         #if SPELL_SYSTEM
         hudManager = FindObjectOfType<HUDManager>(); // bad
         #endif
-        
+    }
+
+    void Start()
+    {
         if (weaponGroups.IsNullOrEmpty()) return;
         
         foreach (WeaponGroup weaponGroup in weaponGroups)
         {
             CreateAllWeaponsInGroup(weaponGroup);
         }
-    }
-
-    void Start()
-    {
+        
         foreach (WeaponGroup weaponGroup in weaponGroups)
         {
             if (weaponGroup.Weapons.IsNullOrEmpty()) continue;

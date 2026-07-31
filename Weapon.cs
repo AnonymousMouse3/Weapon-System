@@ -7,14 +7,10 @@ using DG.Tweening;
 using MouseLib;
 using MyBox;
 using Unity.Cinemachine;
-using Unity.VisualScripting;
-using UnityEditor.Events;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.InputSystem;
-using UnityEngine.Serialization;
 using Debug = UnityEngine.Debug;
-using Object = System.Object;
 using Random = UnityEngine.Random;
 
 // OLD INACCURATE DESCRIPTION

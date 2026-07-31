@@ -7,7 +7,6 @@ using DG.Tweening;
 using UnityEngine;
 using MyBox;
 using Unity.Cinemachine;
-using UnityEditor.Events;
 using UnityEngine.Serialization;
 
 [Serializable, CreateAssetMenu(fileName = "WeaponScriptableObject", menuName = "Weapon System/Weapon Scriptable Object")]
